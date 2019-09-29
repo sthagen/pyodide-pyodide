@@ -27,7 +27,7 @@ browser**.
 ## Try Pyodide (no installation needed)
 
 For more information, try [the demo](https://alpha.iodide.io/notebooks/300/) and look through the
-[documentation](https://github.com/iodide-project/pyodide/tree/master/docs).
+[documentation](https://pyodide.readthedocs.io/).
 
 ## Getting Started
 
@@ -51,9 +51,7 @@ this repository's [releases page](https://github.com/iodide-project/pyodide/rele
 Building is easiest on Linux. For other platforms, we recommend using
 the Docker image (described below) to build Pyodide.
 
-#### Prerequisites
-
-Make sure the prerequisites for [emsdk](https://github.com/juj/emsdk) are
+Make sure the prerequisites for [emsdk](https://github.com/emscripten-core/emsdk) are
 installed. Pyodide will build a custom, patched version of emsdk, so there is no
 need to build it yourself prior.
 
@@ -62,7 +60,7 @@ Additional build prerequisites are:
 - A working native compiler toolchain, enough to build CPython.
 - A native Python 3.7 to run the build scripts.
 - PyYAML
-- [lessc](https://lesscss.org/) to compile less to css.
+- [lessc](http://lesscss.org/) to compile less to css.
 - [uglifyjs](https://github.com/mishoo/UglifyJS) to minify Javascript builds.
 - [ccache](https://ccache.samba.org) (optional) recommended for much faster rebuilds.
 
@@ -173,7 +171,7 @@ Pyodide uses the Mozilla Public License Version 2.0. See the
 ---
 
 **[What is Pyodide?](#what-is-pyodide)** |
-**[Try Pyodide](try-pyodide-no-installation-needed)** |
+**[Try Pyodide](#try-pyodide-no-installation-needed)** |
 **[Getting Started](#getting-started)** |
 **[Contributing](#contributing)** |
 **[License](#license)** |
