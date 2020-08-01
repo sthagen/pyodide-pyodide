@@ -2,13 +2,6 @@
 
 #include "hiwire.h"
 
-// Define special ids for singleton constants. These must be less than -1 to
-// avoid being reused for other values.
-#define HW_UNDEFINED -2
-#define HW_TRUE -3
-#define HW_FALSE -4
-#define HW_NULL -5
-
 EM_JS(void, hiwire_setup, (), {
   // These ids must match the constants above, but we can't use them from JS
   var hiwire = { objects : {}, counter : 1 };
@@ -280,6 +273,13 @@ EM_JS(int, hiwire_new, (int idobj, int idargs), {
 
 EM_JS(int, hiwire_get_length, (int idobj), {
   return Module.hiwire_get_value(idobj).length;
+});
+
+EM_JS(int, hiwire_get_bool, (int idobj), {
+  var val = Module.hiwire_get_value(idobj);
+  // clang-format off
+  return (val && (val.length === undefined || val.length)) ? 1 : 0;
+  // clang-format on
 });
 
 EM_JS(int, hiwire_is_function, (int idobj), {

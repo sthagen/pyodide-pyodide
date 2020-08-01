@@ -42,6 +42,7 @@ to be used with Pyodide.
 
    pypi.md
    api_reference.md
+   faq.md
 
 Developing Pyodide
 ==================
@@ -57,14 +58,19 @@ information about the project's organization.
    :maxdepth: 1
    :caption: Development
 
+   building_from_sources.md
    new_packages.md
    type_conversions.md
+   contributing.md
+   testing.md
 
 .. toctree::
    :titlesonly:
    :caption: Project
 
-   rootdir.rst
+   about.md
+   code-of-conduct
+   changelog.md
 
 Indices and tables
 ==================
