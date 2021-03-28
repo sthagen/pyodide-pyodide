@@ -35,25 +35,19 @@ def generate_largish_json(n_rows: int = 91746) -> Dict:
 
 
 def test_pandas(selenium, request):
-    if selenium.browser == "chrome":
-        request.applymarker(pytest.mark.xfail(run=False, reason="chrome not supported"))
     selenium.load_package("pandas")
     assert len(selenium.run("import pandas\ndir(pandas)")) == 142
 
 
 def test_extra_import(selenium, request):
-    if selenium.browser == "chrome":
-        request.applymarker(pytest.mark.xfail(run=False, reason="chrome not supported"))
 
     selenium.load_package("pandas")
     selenium.run("from pandas import Series, DataFrame, Panel")
 
 
+@pytest.mark.skip_refcount_check
 def test_load_largish_file(selenium_standalone, request, httpserver):
     selenium = selenium_standalone
-
-    if selenium.browser == "chrome":
-        request.applymarker(pytest.mark.xfail(run=False, reason="chrome not supported"))
 
     selenium.load_package("pandas")
     selenium.load_package("matplotlib")
@@ -75,5 +69,5 @@ def test_load_largish_file(selenium_standalone, request, httpserver):
 
         df = pd.read_json(pyodide.open_url('{request_url}'))
         assert df.shape == ({n_rows}, 8)
-    """
+        """
     )

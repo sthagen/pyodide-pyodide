@@ -17,6 +17,7 @@ from time import sleep
 from typing import Dict, Set, Optional, List
 
 from . import common
+from .io import parse_package_config
 
 
 @total_ordering
@@ -28,9 +29,12 @@ class Package:
         if not pkgpath.is_file():
             raise ValueError(f"Directory {pkgdir} does not contain meta.yaml")
 
-        self.meta: dict = common.parse_package(pkgpath)
+        self.meta: dict = parse_package_config(pkgpath)
         self.name: str = self.meta["package"]["name"]
         self.library: bool = self.meta.get("build", {}).get("library", False)
+        self.shared_library: bool = self.meta.get("build", {}).get(
+            "sharedlibrary", False
+        )
 
         assert self.name == pkgdir.stem
 
@@ -40,42 +44,38 @@ class Package:
 
     def build(self, outputdir: Path, args) -> None:
         with open(self.pkgdir / "build.log", "w") as f:
-            if self.library:
-                p = subprocess.run(
-                    ["make"],
-                    cwd=self.pkgdir,
-                    check=False,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                )
-            else:
-                p = subprocess.run(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pyodide_build",
-                        "buildpkg",
-                        str(self.pkgdir / "meta.yaml"),
-                        "--package_abi",
-                        str(args.package_abi),
-                        "--cflags",
-                        args.cflags,
-                        "--ldflags",
-                        args.ldflags,
-                        "--target",
-                        args.target,
-                        "--install-dir",
-                        args.install_dir,
-                    ],
-                    check=False,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                )
+            p = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pyodide_build",
+                    "buildpkg",
+                    str(self.pkgdir / "meta.yaml"),
+                    "--cflags",
+                    args.cflags,
+                    "--cxxflags",
+                    args.cxxflags,
+                    "--ldflags",
+                    args.ldflags,
+                    "--target",
+                    args.target,
+                    "--install-dir",
+                    args.install_dir,
+                ],
+                check=False,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+            )
 
-        with open(self.pkgdir / "build.log", "r") as f:
-            shutil.copyfileobj(f, sys.stdout)
+        try:
+            p.check_returncode()
+        except subprocess.CalledProcessError:
+            print(f"Error building {self.name}. Printing build logs.")
 
-        p.check_returncode()
+            with open(self.pkgdir / "build.log", "r") as f:
+                shutil.copyfileobj(f, sys.stdout)
+
+            raise
 
         if not self.library:
             shutil.copyfile(
@@ -218,6 +218,7 @@ def build_packages(packages_dir: Path, outputdir: Path, args) -> None:
     package_data: dict = {
         "dependencies": {"test": []},
         "import_name_to_package_name": {},
+        "shared_library": {},
     }
 
     libraries = [pkg.name for pkg in pkg_map.values() if pkg.library]
@@ -225,7 +226,8 @@ def build_packages(packages_dir: Path, outputdir: Path, args) -> None:
     for name, pkg in pkg_map.items():
         if pkg.library:
             continue
-
+        if pkg.shared_library:
+            package_data["shared_library"][name] = True
         package_data["dependencies"][name] = [
             x for x in pkg.dependencies if x not in libraries
         ]
@@ -254,30 +256,31 @@ def make_parser(parser):
         help="Output directory in which to put all built packages",
     )
     parser.add_argument(
-        "--package_abi",
-        type=int,
-        required=True,
-        help="The ABI number for the packages to be built",
-    )
-    parser.add_argument(
         "--cflags",
         type=str,
         nargs="?",
-        default=common.DEFAULTCFLAGS,
+        default=common.get_make_flag("SIDE_MODULE_CFLAGS"),
         help="Extra compiling flags",
+    )
+    parser.add_argument(
+        "--cxxflags",
+        type=str,
+        nargs="?",
+        default=common.get_make_flag("SIDE_MODULE_CXXFLAGS"),
+        help="Extra C++ specific compiling flags",
     )
     parser.add_argument(
         "--ldflags",
         type=str,
         nargs="?",
-        default=common.DEFAULTLDFLAGS,
+        default=common.get_make_flag("SIDE_MODULE_LDFLAGS"),
         help="Extra linking flags",
     )
     parser.add_argument(
         "--target",
         type=str,
         nargs="?",
-        default=common.TARGETPYTHON,
+        default=common.get_make_flag("TARGETPYTHONROOT"),
         help="The path to the target Python installation",
     )
     parser.add_argument(
@@ -296,9 +299,7 @@ def make_parser(parser):
         type=str,
         nargs="?",
         default=None,
-        help=(
-            "Only build the specified packages, provided as a comma " "separated list"
-        ),
+        help=("Only build the specified packages, provided as a comma-separated list"),
     )
     parser.add_argument(
         "--n-jobs",

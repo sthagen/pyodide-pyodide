@@ -13,6 +13,8 @@ import queue
 import sys
 import shutil
 
+import pytest
+
 ROOT_PATH = pathlib.Path(__file__).parents[0].resolve()
 TEST_PATH = ROOT_PATH / "src" / "tests"
 BUILD_PATH = ROOT_PATH / "build"
@@ -20,92 +22,88 @@ BUILD_PATH = ROOT_PATH / "build"
 sys.path.append(str(ROOT_PATH))
 
 from pyodide_build._fixes import _selenium_is_connectable  # noqa: E402
-import selenium.webdriver.common.utils  # noqa: E402
-
-# XXX: Temporary fix for ConnectionError in selenium
-
-selenium.webdriver.common.utils.is_connectable = _selenium_is_connectable
 
 try:
-    import pytest
+    import selenium.webdriver.common.utils  # noqa: E402
 
-    def pytest_addoption(parser):
-        group = parser.getgroup("general")
-        group.addoption(
-            "--build-dir",
-            action="store",
-            default=BUILD_PATH,
-            help="Path to the build directory",
-        )
-        group.addoption(
-            "--run-xfail",
-            action="store_true",
-            help="If provided, tests marked as xfail will be run",
-        )
+    # XXX: Temporary fix for ConnectionError in selenium
+
+    selenium.webdriver.common.utils.is_connectable = _selenium_is_connectable
+except ModuleNotFoundError:
+    pass
 
 
-except ImportError:
-    pytest = None
+def pytest_addoption(parser):
+    group = parser.getgroup("general")
+    group.addoption(
+        "--build-dir",
+        action="store",
+        default=BUILD_PATH,
+        help="Path to the build directory",
+    )
+    group.addoption(
+        "--run-xfail",
+        action="store_true",
+        help="If provided, tests marked as xfail will be run",
+    )
 
 
-class PyodideInited:
-    def __call__(self, driver):
-        inited = driver.execute_script(
-            "return window.pyodide && window.pyodide.runPython"
-        )
-        return inited is not None
+def pytest_configure(config):
+    """Monkey patch the function cwd_relative_nodeid returns the description
+    of a test for the short summary table. Monkey patch it to reduce the verbosity of the test names in the table.
+    This leaves enough room to see the information about the test failure in the summary.
+    """
+    old_cwd_relative_nodeid = config.cwd_relative_nodeid
+
+    def cwd_relative_nodeid(*args):
+        result = old_cwd_relative_nodeid(*args)
+        result = result.replace("src/tests/", "")
+        result = result.replace("packages/", "")
+        result = result.replace("::test_", "::")
+        return result
+
+    config.cwd_relative_nodeid = cwd_relative_nodeid
 
 
-class PackageLoaded:
-    def __call__(self, driver):
-        inited = driver.execute_script("return window.done")
-        return bool(inited)
+class JavascriptException(Exception):
+    def __init__(self, msg, stack):
+        self.msg = msg
+        self.stack = stack
+        # In chrome the stack contains the message
+        if self.stack and self.stack.startswith(self.msg):
+            self.msg = ""
 
-
-def _display_driver_logs(browser, driver):
-    if browser == "chrome":
-        print("# Selenium browser logs")
-        print(driver.get_log("browser"))
-    elif browser == "firefox":
-        # browser logs are not available in GeckoDriver
-        # https://github.com/mozilla/geckodriver/issues/284
-        print(
-            "Accessing raw browser logs with Selenium is not " "supported by Firefox."
-        )
+    def __str__(self):
+        return "\n\n".join(x for x in [self.msg, self.stack] if x)
 
 
 class SeleniumWrapper:
+    JavascriptException = JavascriptException
+
     def __init__(
         self, server_port, server_hostname="127.0.0.1", server_log=None, build_dir=None
     ):
-        from selenium.webdriver.support.wait import WebDriverWait
-        from selenium.common.exceptions import TimeoutException
-
         if build_dir is None:
             build_dir = BUILD_PATH
 
-        driver = self.get_driver()
-        wait = WebDriverWait(driver, timeout=40)
+        self.driver = self.get_driver()
+        self.server_port = server_port
+        self.server_hostname = server_hostname
+        self.server_log = server_log
+
         if not (pathlib.Path(build_dir) / "test.html").exists():
             # selenium does not expose HTTP response codes
             raise ValueError(
                 f"{(build_dir / 'test.html').resolve()} " f"does not exist!"
             )
-        driver.get(f"http://{server_hostname}:{server_port}/test.html")
-        try:
-            wait.until(PyodideInited())
-        except TimeoutException:
-            _display_driver_logs(self.browser, driver)
-            raise TimeoutException()
-        self.wait = wait
-        self.driver = driver
-        self.server_port = server_port
-        self.server_hostname = server_hostname
-        self.server_log = server_log
+        self.driver.get(f"http://{server_hostname}:{server_port}/test.html")
+        self.run_js("Error.stackTraceLimit = Infinity;")
+        self.run_js("await languagePluginLoader;")
+        self.save_state()
 
     @property
     def logs(self):
-        logs = self.driver.execute_script("return window.logs")
+        logs = self.driver.execute_script("return window.logs;")
         if logs is not None:
             return "\n".join(str(x) for x in logs)
         else:
@@ -115,36 +113,34 @@ class SeleniumWrapper:
         self.driver.execute_script("window.logs = []")
 
     def run(self, code):
-        return self.run_js("return pyodide.runPython({!r})".format(code))
+        return self.run_js(
+            f"""
+            let result = pyodide.runPython({code!r});
+            if(result && result.toJs){{
+                let converted_result = result.toJs();
+                if(pyodide._module.PyProxy.isPyProxy(converted_result)){{
+                    converted_result = undefined;
+                }}
+                result.destroy();
+                return converted_result;
+            }}
+            return result;
+            """
+        )
 
     def run_async(self, code):
-        from selenium.common.exceptions import TimeoutException
-
-        self.run_js(
-            """
-            window.done = false;
-            pyodide.runPythonAsync({!r})
-              .then(function(output)
-                      {{ window.output = output; window.error = false; }},
-                    function(output)
-                      {{ window.output = output; window.error = true; }})
-              .finally(() => window.done = true);
-            """.format(
-                code
-            )
-        )
-        try:
-            self.wait.until(PackageLoaded())
-        except TimeoutException:
-            _display_driver_logs(self.browser, self.driver)
-            print(self.logs)
-            raise TimeoutException("runPythonAsync timed out")
         return self.run_js(
-            """
-            if (window.error) {
-              throw window.output;
-            }
-            return window.output;
+            f"""
+            let result = await pyodide.runPythonAsync({code!r});
+            if(result && result.toJs){{
+                let converted_result = result.toJs();
+                if(pyodide._module.PyProxy.isPyProxy(converted_result)){{
+                    converted_result = undefined;
+                }}
+                result.destroy();
+                return converted_result;
+            }}
+            return result;
             """
         )
 
@@ -152,96 +148,73 @@ class SeleniumWrapper:
         if isinstance(code, str) and code.startswith("\n"):
             # we have a multiline string, fix indentation
             code = textwrap.dedent(code)
-        catch = f"""
-            Error.stackTraceLimit = Infinity;
-            try {{ {code} }}
-            catch (error) {{ console.log(error.stack); throw error; }}"""
-        return self.driver.execute_script(catch)
 
-    def setup_webworker(self):
-        hostname = self.server_hostname
-        port = self.server_port
-        url = f"http://{hostname}:{port}/webworker_dev.js"
-        self.run_js(
-            f"""
-            window.done = false;
-            window.pyodideWorker = new Worker( '{url}' );
+        wrapper = """
+            let cb = arguments[arguments.length - 1];
+            let run = async () => { %s }
+            (async () => {
+                try {
+                    let result = await run();
+                    if(pyodide && pyodide._module && pyodide._module._PyErr_Occurred()){
+                        try {
+                            pyodide._module._pythonexc2js();
+                        } catch(e){
+                            console.error(`Python exited with error flag set! Error was:\n{e.message}`);
+                            // Don't put original error message in new one: we want
+                            // "pytest.raises(xxx, match=msg)" to fail
+                            throw new Error(`Python exited with error flag set!`);
+                        }
+                    }
+                    cb([0, result]);
+                } catch (e) {
+                    cb([1, e.toString(), e.stack]);
+                }
+            })()
+        """
 
-            window.pyodideWorker.onerror = function(e) {{
-                window.output = e;
-                window.error = true;
-                window.done = true;
-            }};
+        retval = self.driver.execute_async_script(wrapper % code)
 
-            window.pyodideWorker.onmessage = function(e) {{
-              if (e.data.results) {{
-                window.output = e.data.results;
-                window.error = false;
-              }} else {{
-                window.output = e.data.error;
-                window.error = true;
-              }}
-              window.done = true;
-            }};
-            """
-        )
+        if retval[0] == 0:
+            return retval[1]
+        else:
+            raise JavascriptException(retval[1], retval[2])
+
+    def get_num_hiwire_keys(self):
+        return self.run_js("return pyodide._module.hiwire.num_keys();")
+
+    def save_state(self):
+        self.run_js("self.__savedState = pyodide._module.saveState();")
+
+    def restore_state(self):
+        self.run_js("pyodide._module.restoreState(self.__savedState)")
 
     def run_webworker(self, code):
-        from selenium.common.exceptions import TimeoutException
-
-        self.setup_webworker()
         if isinstance(code, str) and code.startswith("\n"):
             # we have a multiline string, fix indentation
             code = textwrap.dedent(code)
-        self.run_js(
-            """
-            var data = {{
-              python: {!r}
-            }};
 
-            window.pyodideWorker.postMessage(data);
-            """.format(
-                code
-            )
-        )
-        try:
-            self.wait.until(PackageLoaded())
-        except TimeoutException:
-            _display_driver_logs(self.browser, self.driver)
-            print(self.logs)
-            raise TimeoutException("run_webworker timed out")
         return self.run_js(
             """
-            if (window.error) {
-                if (window.output instanceof Error) {
-                    throw window.output;
-                } else {
-                    throw new Error(String(window.output))
-                }
-            }
-            return window.output;
-            """
+            let worker = new Worker( '{}' );
+            worker.postMessage({{ python: {!r} }});
+            return new Promise((res, rej) => {{
+                worker.onerror = e => rej(e);
+                worker.onmessage = e => {{
+                    if (e.data.results) {{
+                       res(e.data.results);
+                    }} else {{
+                       rej(e.data.error);
+                    }}
+                }};
+            }})
+            """.format(
+                f"http://{self.server_hostname}:{self.server_port}/webworker_dev.js",
+                code,
+            )
         )
 
     def load_package(self, packages):
-        self.run_js(
-            "window.done = false\n"
-            + "pyodide.loadPackage({!r})".format(packages)
-            + ".finally(function() { window.done = true; })"
-        )
-        __tracebackhide__ = True
-        self.wait_until_packages_loaded()
-
-    def wait_until_packages_loaded(self):
-        from selenium.common.exceptions import TimeoutException
-
-        __tracebackhide__ = True
-        try:
-            self.wait.until(PackageLoaded())
-        except TimeoutException:
-            _display_driver_logs(self.browser, self.driver)
-            print(self.logs)
-            raise TimeoutException("wait_until_packages_loaded timed out")
+        self.run_js("await pyodide.loadPackage({!r})".format(packages))
 
     @property
     def urls(self):
@@ -257,12 +230,9 @@ class FirefoxWrapper(SeleniumWrapper):
     def get_driver(self):
         from selenium.webdriver import Firefox
         from selenium.webdriver.firefox.options import Options
-        from selenium.common.exceptions import JavascriptException
 
         options = Options()
         options.add_argument("-headless")
-
-        self.JavascriptException = JavascriptException
 
         return Firefox(executable_path="geckodriver", options=options)
 
@@ -274,66 +244,102 @@ class ChromeWrapper(SeleniumWrapper):
     def get_driver(self):
         from selenium.webdriver import Chrome
         from selenium.webdriver.chrome.options import Options
-        from selenium.common.exceptions import WebDriverException
 
         options = Options()
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
 
-        self.JavascriptException = WebDriverException
-
         return Chrome(options=options)
 
 
-if pytest is not None:
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    """We want to run extra verification at the start and end of each test to
+    check that we haven't leaked memory. According to pytest issue #5044, it's
+    not possible to "Fail" a test from a fixture (no matter what you do, pytest
+    sets the test status to "Error"). The approach suggested there is hook
+    pytest_runtest_call as we do here. To get access to the selenium fixture, we
+    immitate the definition of pytest_pyfunc_call:
+    https://github.com/pytest-dev/pytest/blob/6.2.2/src/_pytest/python.py#L177
 
-    @pytest.fixture(params=["firefox", "chrome"])
-    def selenium_standalone(request, web_server_main):
-        server_hostname, server_port, server_log = web_server_main
-        if request.param == "firefox":
-            cls = FirefoxWrapper
-        elif request.param == "chrome":
-            cls = ChromeWrapper
-        selenium = cls(
-            build_dir=request.config.option.build_dir,
-            server_port=server_port,
-            server_hostname=server_hostname,
-            server_log=server_log,
-        )
+    Pytest issue #5044:
+    https://github.com/pytest-dev/pytest/issues/5044
+    """
+    selenium = None
+    if "selenium" in item._fixtureinfo.argnames:
+        selenium = item.funcargs["selenium"]
+    if "selenium_standalone" in item._fixtureinfo.argnames:
+        selenium = item.funcargs["selenium_standalone"]
+    if selenium and pytest.mark.skip_refcount_check.mark not in item.own_markers:
+        yield from test_wrapper_check_for_memory_leaks(selenium)
+    else:
+        yield
+
+
+def test_wrapper_check_for_memory_leaks(selenium):
+    init_num_keys = selenium.get_num_hiwire_keys()
+    a = yield
+    selenium.restore_state()
+    # if there was an error in the body of the test, flush it out by calling
+    # get_result (we don't want to override the error message by raising a
+    # different error here.)
+    a.get_result()
+    delta_keys = selenium.get_num_hiwire_keys() - init_num_keys
+    assert delta_keys == 0
+
+
+@contextlib.contextmanager
+def selenium_common(request, web_server_main):
+    server_hostname, server_port, server_log = web_server_main
+    if request.param == "firefox":
+        cls = FirefoxWrapper
+    elif request.param == "chrome":
+        cls = ChromeWrapper
+    else:
+        assert False
+    selenium = cls(
+        build_dir=request.config.option.build_dir,
+        server_port=server_port,
+        server_hostname=server_hostname,
+        server_log=server_log,
+    )
+    try:
+        yield selenium
+    finally:
+        selenium.driver.quit()
+
+
+@pytest.fixture(params=["firefox", "chrome"], scope="function")
+def selenium_standalone(request, web_server_main):
+    with selenium_common(request, web_server_main) as selenium:
         try:
             yield selenium
         finally:
             print(selenium.logs)
-            selenium.driver.quit()
 
-    @pytest.fixture(params=["firefox", "chrome"], scope="module")
-    def _selenium_cached(request, web_server_main):
-        # Cached selenium instance. This is a copy-paste of
-        # selenium_standalone to avoid fixture scope issues
-        server_hostname, server_port, server_log = web_server_main
-        if request.param == "firefox":
-            cls = FirefoxWrapper
-        elif request.param == "chrome":
-            cls = ChromeWrapper
-        selenium = cls(
-            build_dir=request.config.option.build_dir,
-            server_port=server_port,
-            server_hostname=server_hostname,
-            server_log=server_log,
-        )
-        try:
-            yield selenium
-        finally:
-            selenium.driver.quit()
 
-    @pytest.fixture
-    def selenium(_selenium_cached):
-        # selenium instance cached at the module level
-        try:
-            _selenium_cached.clean_logs()
-            yield _selenium_cached
-        finally:
-            print(_selenium_cached.logs)
+# selenium instance cached at the module level
+@pytest.fixture(params=["firefox", "chrome"], scope="module")
+def selenium_module_scope(request, web_server_main):
+    with selenium_common(request, web_server_main) as selenium:
+        yield selenium
+
+
+# We want one version of this decorated as a function-scope fixture and one
+# version decorated as a context manager.
+def selenium_per_function(selenium_module_scope):
+    try:
+        selenium_module_scope.clean_logs()
+        yield selenium_module_scope
+    finally:
+        print(selenium_module_scope.logs)
+
+
+selenium = pytest.fixture(selenium_per_function)
+# Hypothesis is unhappy with function scope fixtures. Instead, use the
+# module scope fixture `selenium_module_scope` and use:
+# `with selenium_context_manager(selenium_module_scope) as selenium`
+selenium_context_manager = contextlib.contextmanager(selenium_per_function)
 
 
 @pytest.fixture(scope="session")

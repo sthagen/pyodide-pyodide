@@ -1,36 +1,8 @@
 from pathlib import Path
 from typing import Optional, Set
-
-ROOTDIR = Path(__file__).parents[1].resolve() / "tools"
-TARGETPYTHON = ROOTDIR / ".." / "cpython" / "installs" / "python-3.8.2"
-DEFAULTCFLAGS = ""
-# fmt: off
-DEFAULTLDFLAGS = " ".join(
-    [
-        "-O2",
-        "-s", "BINARYEN_METHOD='native-wasm'",
-        "-Werror",
-        "-s", "EMULATED_FUNCTION_POINTERS=1",
-        "-s", "EMULATE_FUNCTION_POINTER_CASTS=1",
-        "-s", "SIDE_MODULE=1",
-        "-s", "WASM=1",
-        "-s", "BINARYEN_TRAP_MODE='clamp'",
-        "--memory-init-file", "0",
-        "-s", "LINKABLE=1",
-        "-s", "EXPORT_ALL=1",
-    ]
-)
-# fmt: on
-
-
-def parse_package(package):
-    # Import yaml here because pywasmcross needs to run in the built native
-    # Python, which won't have PyYAML
-    import yaml
-
-    # TODO: Validate against a schema
-    with open(package) as fd:
-        return yaml.safe_load(fd)
+import shutil
+import subprocess
+import functools
 
 
 def _parse_package_subset(query: Optional[str]) -> Optional[Set[str]]:
@@ -43,7 +15,49 @@ def _parse_package_subset(query: Optional[str]) -> Optional[Set[str]]:
     """
     if query is None:
         return None
-    packages = query.split(",")
-    packages = [el.strip() for el in packages]
-    packages = ["micropip", "distlib"] + packages
-    return set(packages)
+    packages = {el.strip() for el in query.split(",")}
+    packages.update(["micropip", "distlib"])
+    packages.discard("")
+    return packages
+
+
+def file_packager_path() -> Path:
+    # Use emcc.py because emcc may be a ccache symlink
+    emcc_path = shutil.which("emcc.py")
+    if emcc_path is None:
+        raise RuntimeError(
+            "emcc.py not found. Setting file_packager.py path to /dev/null"
+        )
+
+    return Path(emcc_path).parent / "tools" / "file_packager.py"
+
+
+def get_make_flag(name):
+    """Get flags from makefile.envs,
+        e.g. For building packages we currently use:
+    SIDE_MODULE_LDFLAGS
+    SIDE_MODULE_CFLAGS
+    SIDE_MODULE_CXXFLAGS
+    TOOLSDIR
+    """
+    return get_make_environment_vars()[name]
+
+
+@functools.lru_cache(maxsize=None)
+def get_make_environment_vars():
+    """Load environment variables from Makefile.envs, this allows us to set all build vars in one place"""
+    __ROOTDIR = Path(__file__).parents[1].resolve()
+    environment = {}
+    result = subprocess.run(
+        ["make", "-f", str(__ROOTDIR / "Makefile.envs"), ".output_vars"],
+        capture_output=True,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        equalPos = line.find("=")
+        if equalPos != -1:
+            varname = line[0:equalPos]
+            value = line[equalPos + 1 :]
+            value = value.strip("'").strip()
+            environment[varname] = value
+    return environment

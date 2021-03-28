@@ -1,11 +1,27 @@
-from collections import namedtuple
 from pathlib import Path
 import sys
+import argparse
+from dataclasses import dataclass
+
+import pytest
 
 sys.path.append(str(Path(__file__).parents[2]))
 
 from pyodide_build.pywasmcross import handle_command  # noqa: E402
 from pyodide_build.pywasmcross import f2c  # noqa: E402
+from pyodide_build.pywasmcross import make_parser
+
+
+@dataclass
+class BuildArgs:
+    """An object to hold build arguments"""
+
+    cflags: str = ""
+    cxxflags: str = ""
+    ldflags: str = ""
+    host: str = ""
+    replace_libs: str = ""
+    install_dir: str = ""
 
 
 def _args_wrapper(func):
@@ -31,24 +47,64 @@ f2c_wrap = _args_wrapper(f2c)
 
 
 def test_handle_command():
-    Args = namedtuple("args", ["cflags", "ldflags", "host"])
-    args = Args(cflags="", ldflags="", host="")
+    args = BuildArgs()
     assert handle_command_wrap("gcc -print-multiarch", args) is None
     assert handle_command_wrap("gcc test.c", args) == "emcc test.c"
     assert (
         handle_command_wrap("gcc -shared -c test.o -o test.so", args)
-        == "emcc -shared -c test.bc -o test.wasm"
+        == "emcc -c test.o -o test.so"
+    )
+
+    # check cxxflags injection and cpp detection
+    args = BuildArgs(
+        cflags="-I./lib2",
+        cxxflags="-std=c++11",
+        ldflags="-lm",
+    )
+    assert (
+        handle_command_wrap("gcc -I./lib1 test.cpp -o test.o", args)
+        == "em++ -I./lib2 -std=c++11 -I./lib1 test.cpp -o test.o"
     )
 
     # check ldflags injection
-    args = Args(cflags="", ldflags="-lm", host="")
+    args = BuildArgs(
+        cflags="", cxxflags="", ldflags="-lm", host="", replace_libs="", install_dir=""
+    )
     assert (
         handle_command_wrap("gcc -shared -c test.o -o test.so", args)
-        == "emcc -lm -shared -c test.bc -o test.wasm"
+        == "emcc -lm -c test.o -o test.so"
+    )
+
+    # check library replacement and removal of double libraries
+    args = BuildArgs(
+        replace_libs="bob=fred",
+    )
+    assert (
+        handle_command_wrap("gcc -shared test.o -lbob -ljim -ljim -o test.so", args)
+        == "emcc test.o -lfred -ljim -o test.so"
     )
 
     # compilation checks in numpy
     assert handle_command_wrap("gcc /usr/file.c", args) is None
+
+
+@pytest.mark.parametrize(
+    "in_ext, out_ext, executable, flag_name",
+    [
+        (".c", ".o", "emcc", "cflags"),
+        (".cpp", ".o", "em++", "cxxflags"),
+        (".c", ".so", "emcc", "ldflags"),
+    ],
+)
+def test_handle_command_optflags(in_ext, out_ext, executable, flag_name):
+    # Make sure that when multiple optflags are present those in cflags,
+    # cxxflags, or ldflags has priority
+
+    args = BuildArgs(**{flag_name: "-Oz"})
+    assert (
+        handle_command_wrap(f"gcc -O3 test.{in_ext} -o test.{out_ext}", args)
+        == f"{executable} -Oz test.{in_ext} -o test.{out_ext}"
+    )
 
 
 def test_f2c():
@@ -62,8 +118,25 @@ def test_f2c():
 
 
 def test_conda_compiler_compat():
-    Args = namedtuple("args", ["cflags", "ldflags", "host"])
-    args = Args(cflags="", ldflags="", host="")
+    args = BuildArgs()
     assert handle_command_wrap(
         "gcc -shared -c test.o -B /compiler_compat -o test.so", args
-    ) == ("emcc -shared -c test.bc -o test.wasm")
+    ) == ("emcc -c test.o -o test.so")
+
+
+def test_environment_var_substitution(monkeypatch):
+    monkeypatch.setenv("PYODIDE_BASE", "pyodide_build_dir")
+    monkeypatch.setenv("BOB", "Robert Mc Roberts")
+    monkeypatch.setenv("FRED", "Frederick F. Freddertson Esq.")
+    monkeypatch.setenv("JIM", "James Ignatius Morrison:Jimmy")
+    call_args = 'pywasmcross.py --ldflags "-l$(PYODIDE_BASE)" --cxxflags $(BOB) --cflags $(FRED) --replace-libs $(JIM)'
+    monkeypatch.setattr(sys, "argv", call_args.split(" "))
+    parser = argparse.ArgumentParser()
+    make_parser(parser)
+    args = parser.parse_args()
+    assert (
+        args.cflags == "Frederick F. Freddertson Esq."
+        and args.cxxflags == "Robert Mc Roberts"
+        and args.ldflags == '"-lpyodide_build_dir"'
+        and args.replace_libs == "James Ignatius Morrison:Jimmy"
+    )
