@@ -1,4 +1,4 @@
-# Frequently Asked Questions (FAQ)
+# Frequently Asked Questions
 
 ## How can I load external Python files in Pyodide?
 
@@ -200,9 +200,10 @@ This also avoids memory leaks.
 ## How can I use fetch with optional arguments from Python?
 The most obvious translation of the Javascript code won't work:
 ```py
+import json
 resp = await js.fetch('/someurl', {
     "method": "POST"
-  , "body": '{ "some" : "json" }'
+  , "body": json.dumps({ "some" : "json" })
   , "credentials": "same-origin"
   , "headers": { "Content-Type": "application/json" }
 })
@@ -211,9 +212,10 @@ this leaks the dictionary and the `fetch` api ignores the options that we
 attempted to provide. There are two correct ways to do this:
 ```py
 from pyodide import to_js
+import json
 resp = await js.fetch('example.com/some_api',
   method= "POST",
-  body= '{ "some" : "json" }',
+  body= json.dumps({ "some" : "json" }),
   credentials= "same-origin",
   headers= to_js({ "Content-Type": "application/json" }),
 )
@@ -221,10 +223,50 @@ resp = await js.fetch('example.com/some_api',
 or:
 ```py
 from pyodide import to_js
+import json
 resp = await js.fetch('example.com/some_api', to_js({
     "method": "POST"
-  , "body": '{ "some" : "json" }'
+  , "body": json.dumps({ "some" : "json" })
   , "credentials": "same-origin"
   , "headers": { "Content-Type": "application/json" }
 }))
+```
+
+## How can I control the behavior of stdin / stdout / stderr?
+This works much the same as it does in native Python: you can overwrite
+`sys.stdin`, `sys.stdout`, and `sys.stderr` respectively. If you want to do it
+temporarily, it's recommended to use
+[`contextlib.redirect_stdout`](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stdout)
+and
+[`contextlib.redirect_stderr](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr).
+There is no `contextlib.redirect_stdin` but it is easy to make your own as follows:
+```py
+from contextlib import _RedirectStream
+class redirect_stdin(_RedirectStream):
+    _stream = "stdin"
+```
+For example, if you do:
+```
+from io import StringIO
+with redirect_stdin(StringIO("\n".join(["eval", "asyncio.ensure_future", "functools.reduce", "quit"]))):
+  help()
+```
+it will print:
+```
+Welcome to Python 3.8's help utility!
+<...OMITTED LINES>
+Help on built-in function eval in module builtins:
+eval(source, globals=None, locals=None, /)
+    Evaluate the given source in the context of globals and locals.
+<...OMITTED LINES>
+Help on function ensure_future in asyncio:
+asyncio.ensure_future = ensure_future(coro_or_future, *, loop=None)
+    Wrap a coroutine or an awaitable in a future.
+<...OMITTED LINES>
+Help on built-in function reduce in functools:
+functools.reduce = reduce(...)
+    reduce(function, sequence[, initial]) -> value
+    Apply a function of two arguments cumulatively to the items of a sequence,
+<...OMITTED LINES>
+You are now leaving help and returning to the Python interpreter.
 ```
