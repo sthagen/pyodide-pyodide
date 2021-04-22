@@ -8,9 +8,14 @@ substitutions:
 
 
 (changelog)=
-# Release notes
+# Change Log
 
-## Version [Unreleased]
+## [Unreleased]
+
+## Version 0.17.0
+*April 21, 2020*
+
+See the {ref}`0-17-0-release-notes` for more information.
 
 ### Improvements to package loading and dynamic linking
 - {{ Enhancement }} Uses the emscripten preload plugin system to preload .so files in packages
@@ -37,9 +42,6 @@ substitutions:
   awaitable Javascript object. Awaiting a coroutine will schedule it to run on
   the Python event loop using `asyncio.ensure_future`.
   {pr}`1170`
-- {{ Feature }} A `JsProxy` of a Javascript `Promise` or other awaitable object is now a
-  Python awaitable.
-  {pr}`880`
 - {{ Enhancement }} Made `PyProxy` of an iterable Python object an iterable Js
   object: defined the `[Symbol.iterator]` method, can be used like `for(let x of
   proxy)`. Made a `PyProxy` of a Python iterator an iterator: `proxy.next()` is
@@ -69,9 +71,16 @@ substitutions:
 - {{ Enhancement }} `PyProxy` and `PyBuffer` objects are now garbage collected
   if the browser supports `FinalizationRegistry`.
   {pr}`1306`
-
-
-### Fixed
+- {{ Enhancement }} Automatic conversion of Javascript functions to CPython
+  calling conventions.
+  {pr}`1051`, {pr}`1080`
+- {{ Enhancement }} Automatic detection of fatal errors. In this case Pyodide
+  will produce both a Javascript and a Python stack trace with explicit
+  instruction to open a bug report.
+  pr`{1151}`, pr`{1390}`, pr`{1478}`.
+- {{ Enhancement }} Systematic memory leak detection in the test suite and a
+  large number of fixed to memory leaks.
+  pr`{1340}`
 - {{ Fix }} getattr and dir on JsProxy now report consistent results and include all
   names defined on the Python dictionary backing JsProxy.
   {pr}`1017`
@@ -98,9 +107,6 @@ substitutions:
 
 ### pyodide-py package
 
-- {{ Feature }} Added an `InteractiveConsole` class with completion support to
-  ease the integration of Pyodide REPL in webpages (used in console.html)
-  {pr}`1125` and {pr}`1155`
 - {{ Feature }} Added a Python event loop to support asyncio by scheduling
   coroutines to run as jobs on the browser event loop. This event loop is
   available by default and automatically enabled by any relevant asyncio API,
@@ -170,6 +176,10 @@ substitutions:
   {pr}`1423`.
 - {{ Enhancement }} Run arbitrary command in docker
   {pr}`1424`
+- Docker images for Pyodide are now accessible at
+  [pyodide/pyodide-env](https://hub.docker.com/repository/docker/pyodide/pyodide-env)
+  and
+  [pyodide/pyodide](https://hub.docker.com/repository/docker/pyodide/pyodide).
 
 ### REPL
 
@@ -187,9 +197,8 @@ substitutions:
 - six, jedi and parso are no longer vendored in the main Pyodide package, and
   need to be loaded explicitly
   {pr}`1010`, {pr}`987`.
-- Updated packages: bleach 3.3.0, packaging 20.8
-  {pr}`1021`, {pr}`1338`
-- Added Plotly version 4.14.3 and Retrying dependency
+- Updated packages {pr}`1021`, {pr}`1338`, {pr}`1460`.
+- Added Plotly version 4.14.3 and retrying dependency
   {pr}`1419`
 
 ## Version 0.16.1

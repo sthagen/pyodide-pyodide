@@ -202,34 +202,24 @@ The most obvious translation of the Javascript code won't work:
 ```py
 import json
 resp = await js.fetch('/someurl', {
-    "method": "POST"
-  , "body": json.dumps({ "some" : "json" })
-  , "credentials": "same-origin"
-  , "headers": { "Content-Type": "application/json" }
+  "method": "POST",
+  "body": json.dumps({ "some" : "json" }),
+  "credentials": "same-origin",
+  "headers": { "Content-Type": "application/json" }
 })
 ```
 this leaks the dictionary and the `fetch` api ignores the options that we
-attempted to provide. There are two correct ways to do this:
+attempted to provide. You can do this correctly as follows:
 ```py
-from pyodide import to_js
 import json
+from pyodide import to_js
+from js import Object
 resp = await js.fetch('example.com/some_api',
   method= "POST",
   body= json.dumps({ "some" : "json" }),
   credentials= "same-origin",
-  headers= to_js({ "Content-Type": "application/json" }),
+  headers= Object.fromEntries(to_js({ "Content-Type": "application/json" })),
 )
-```
-or:
-```py
-from pyodide import to_js
-import json
-resp = await js.fetch('example.com/some_api', to_js({
-    "method": "POST"
-  , "body": json.dumps({ "some" : "json" })
-  , "credentials": "same-origin"
-  , "headers": { "Content-Type": "application/json" }
-}))
 ```
 
 ## How can I control the behavior of stdin / stdout / stderr?
@@ -238,7 +228,7 @@ This works much the same as it does in native Python: you can overwrite
 temporarily, it's recommended to use
 [`contextlib.redirect_stdout`](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stdout)
 and
-[`contextlib.redirect_stderr](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr).
+[`contextlib.redirect_stderr`](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr).
 There is no `contextlib.redirect_stdin` but it is easy to make your own as follows:
 ```py
 from contextlib import _RedirectStream
