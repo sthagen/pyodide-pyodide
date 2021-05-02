@@ -5,7 +5,8 @@ include Makefile.envs
 .PHONY=check
 
 FILEPACKAGER=$$EM_DIR/tools/file_packager.py
-UGLIFYJS=$(PYODIDE_ROOT)/node_modules/.bin/uglifyjs
+UGLIFYJS=npx uglifyjs
+PRETTIER=npx prettier
 
 CPYTHONROOT=cpython
 CPYTHONLIB=$(CPYTHONROOT)/installs/python-$(PYVERSION)/lib/python$(PYMINOR)
@@ -57,12 +58,16 @@ build/pyodide.asm.js: \
 		--exclude-file "*/tests/*"
 	# Strip out C++ symbols which all start __Z.
 	# There are 4821 of these and they have VERY VERY long names.
-	# Reduces size of pyodide.asm.js by a factor of 2.
-	# I messed around with striping more and could remove another 400kb or so
-	# but the regexes I got were generated.
 	# To show some stats on the symbols you can use the following:
 	# cat build/pyodide.asm.js | grep -ohE 'var _{0,5}.' | sort | uniq -c | sort -nr | head -n 20
 	sed -i -E 's/var __Z[^;]*;//g' build/pyodide.asm.js
+	sed -i '1i\
+		"use strict";\
+		let setImmediate = globalThis.setImmediate;\
+		let clearImmediate = globalThis.clearImmediate;\
+		let baseName, fpcGOT, dyncallGOT, fpVal, dcVal;\
+	' build/pyodide.asm.js
+	echo "globalThis._createPyodideModule = _createPyodideModule;" >> build/pyodide.asm.js
 	date +"[%F %T] done building pyodide.asm.js."
 
 
@@ -112,14 +117,13 @@ update_base_url: \
 test: all
 	pytest src emsdk/tests packages/*/test* pyodide_build -v
 
-
 lint:
 	# check for unused imports, the rest is done by black
 	flake8 --select=F401 src tools pyodide_build benchmark conftest.py docs
-	clang-format-6.0 -output-replacements-xml `find src -type f -regex ".*\.\(c\|h\|js\)"` | (! grep '<replacement ')
+	clang-format-6.0 -output-replacements-xml `find src -type f -regex ".*\.\(c\|h\\)"` | (! grep '<replacement ')
+	$(PRETTIER) --check `find src -type f -name '*.js'`
 	black --check .
 	mypy --ignore-missing-imports pyodide_build/ src/ packages/micropip/micropip/ packages/*/test* conftest.py docs
-
 
 apply-lint:
 	./tools/apply-lint.sh
@@ -145,7 +149,7 @@ clean-all: clean
 	$(CC) -o $@ -c $< $(MAIN_MODULE_CFLAGS) -Isrc/core/
 
 
-build/test.data: $(CPYTHONLIB) $(UGLIFYJS)
+build/test.data: $(CPYTHONLIB)
 	( \
 		cd $(CPYTHONLIB)/test; \
 		find . -type d -name __pycache__ -prune -exec rm -rf {} \; \
@@ -155,12 +159,6 @@ build/test.data: $(CPYTHONLIB) $(UGLIFYJS)
 		python $(FILEPACKAGER) test.data --lz4 --preload ../$(CPYTHONLIB)/test@/lib/python$(PYMINOR)/test --js-output=test.js --export-name=globalThis.pyodide._module --exclude __pycache__ \
 	)
 	$(UGLIFYJS) build/test.js -o build/test.js
-
-
-$(UGLIFYJS): emsdk/emsdk/.complete
-	npm i --no-save uglify-js
-	touch -h $(UGLIFYJS)
-
 
 $(CPYTHONLIB): emsdk/emsdk/.complete $(PYODIDE_EMCC) $(PYODIDE_CXX)
 	date +"[%F %T] Building cpython..."
