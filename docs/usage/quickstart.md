@@ -10,13 +10,13 @@ Try Pyodide in a [REPL](https://pyodide.org/en/latest/console.html) directly in 
 
 To include Pyodide in your project you can use the following CDN URL:
 
-```{eval-rst}
-  https://cdn.jsdelivr.net/pyodide/v0.18.0/full/pyodide.js
+```text
+https://cdn.jsdelivr.net/pyodide/dev/full/pyodide.js
 ```
 
 You can also download a release from [Github
 releases](https://github.com/pyodide/pyodide/releases) or build Pyodide
-yourself. See {ref}`serving_pyodide_packages` for more details.
+yourself. See {ref}`downloading_deploying` for more details.
 
 The `pyodide.js` file defines a single async function called
 {any}`loadPyodide <globalThis.loadPyodide>` which sets up the Python environment
@@ -24,7 +24,7 @@ and returns {js:mod}`the Pyodide top level namespace <pyodide>`.
 
 ```pyodide
 async function main() {
-  let pyodide = await loadPyodide({ indexURL : "https://cdn.jsdelivr.net/pyodide/v0.18.0/full/" });
+  let pyodide = await loadPyodide({ indexURL : "https://cdn.jsdelivr.net/pyodide/dev/full/" });
   // Pyodide is now ready to use...
   console.log(pyodide.runPython(`
     import sys
@@ -60,7 +60,7 @@ Create and save a test `index.html` page with the following contents:
 <!DOCTYPE html>
 <html>
   <head>
-      <script src="https://cdn.jsdelivr.net/pyodide/v0.18.0/full/pyodide.js"></script>
+      <script src="https://cdn.jsdelivr.net/pyodide/dev/full/pyodide.js"></script>
   </head>
   <body>
     Pyodide test page <br>
@@ -68,7 +68,7 @@ Create and save a test `index.html` page with the following contents:
     <script type="text/javascript">
       async function main(){
         let pyodide = await loadPyodide({
-          indexURL : "https://cdn.jsdelivr.net/pyodide/v0.18.0/full/"
+          indexURL : "https://cdn.jsdelivr.net/pyodide/dev/full/"
         });
         console.log(pyodide.runPython(`
             import sys
@@ -88,7 +88,7 @@ Create and save a test `index.html` page with the following contents:
 <!DOCTYPE html>
 <html>
   <head>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.18.0/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/dev/full/pyodide.js"></script>
   </head>
 
   <body>
@@ -115,7 +115,7 @@ Create and save a test `index.html` page with the following contents:
       // init Pyodide
       async function main() {
         let pyodide = await loadPyodide({
-          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.18.0/full/",
+          indexURL: "https://cdn.jsdelivr.net/pyodide/dev/full/",
         });
         output.value += "Ready!\n";
         return pyodide;
