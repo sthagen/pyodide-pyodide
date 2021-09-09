@@ -13,6 +13,20 @@ substitutions:
 
 ## Unreleased
 
+### pyodide-build
+
+- By default only a minimal set of packages is built. To build all packages set
+  `PYODIDE_PACKAGES='*'` In addition, `make minimal` was removed, since it is
+  now equivalent to `make` without extra arguments. {pr}`1801`
+
+- Changes to environment variables in the build script are now seen in the
+  compile and post build scripts.
+  {pr}`1706`
+
+### Uncategorized
+
+## Version 0.18.1 (unreleased)
+
 ### Console
 
 - {{Fix}} Ctrl+C handling in console now works correctly with multiline input.
@@ -20,23 +34,40 @@ substitutions:
   console.
   {pr}`1790`
 
+- {{Fix}} Fix the repr of Python objects (including lists and dicts) in console {pr}`1780`
+
 - {{Fix}} The "long output truncated" message now appears on a separate line as intended.
   {pr}`1814`
+
+- {{Fix}} The streams that are used to redirect stdin and stdout in the console now define
+  `isatty` to return `True`. This fixes pytest.
+  {pr}`1822`
+
+### Python package
+
+- {{Fix}} Avoid circular references when runsource raises SyntaxError
+  {pr}`1758`
+
+- {{Enhancement}} If `find_imports` is used on code that contains a syntax
+  error, it will return an empty list instead of raising a `SyntaxError`.
+  {pr}`1819`
+
+### Javascript package
+
+- {{Fix}} The {any}`pyodide.setInterruptBuffer` command is now publicly exposed
+  again, as it was in v0.17.0. {pr}`1797`
 
 ### Python / JavaScript type conversions
 
 - {{Fix}} Conversion of very large strings from Javascript to Python works
   again. {pr}`1806`
 
-### pyodide-build
+- {{Fix}} Fixed a use after free bug in the error handling code.
+  {pr}`1816`
 
-- By default only a minimal set of packages is built. To build all packages set
-  `PYODIDE_PACKAGES='*'` In addition, `make minimal` was removed, since it is
-  now equivalent to `make` without extra arguments. {pr}`1801`
+### Packages
 
-- {{Fix}} The `setInterruptBuffer` command is now publically exposed again, as
-  it was before.
-  {pr}`1797`
+- {{Fix}} pillow now correctly encodes/decodes JPEG image format. {pr}`1818`
 
 ## Version 0.18.0
 

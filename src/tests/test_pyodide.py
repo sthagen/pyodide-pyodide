@@ -11,15 +11,25 @@ from pyodide import find_imports, eval_code, CodeRunner, should_quiet  # noqa: E
 def test_find_imports():
 
     res = find_imports(
-        dedent(
-            """
-           import numpy as np
-           from scipy import sparse
-           import matplotlib.pyplot as plt
-           """
-        )
+        """
+        import numpy as np
+        from scipy import sparse
+        import matplotlib.pyplot as plt
+        """
     )
     assert set(res) == {"numpy", "scipy", "matplotlib"}
+
+    # If there is a syntax error in the code, find_imports should return empty
+    # list.
+    res = find_imports(
+        """
+        import numpy as np
+        from scipy import sparse
+        import matplotlib.pyplot as plt
+        for x in [1,2,3]
+        """
+    )
+    assert res == []
 
 
 def test_code_runner():
@@ -571,6 +581,32 @@ def test_reentrant_error(selenium):
         """
     )
     assert caught
+
+
+def test_restore_error(selenium):
+    # See PR #1816.
+    selenium.run_js(
+        """
+        self.f = function(){
+            pyodide.runPython(`
+                err = Exception('hi')
+                raise err
+            `);
+        }
+        pyodide.runPython(`
+            from js import f
+            import sys
+            try:
+                f()
+            except Exception as e:
+                assert err == e
+                assert e == sys.last_value
+            finally:
+                del err
+            assert sys.getrefcount(sys.last_value) == 2
+        `);
+        """
+    )
 
 
 @pytest.mark.skip_refcount_check
