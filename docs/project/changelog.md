@@ -23,6 +23,9 @@ substitutions:
   compile and post build scripts.
   {pr}`1706`
 
+- {{ Enhancement }} Better support for ccache when building Pyodide
+  {pr}`1805`
+
 ### Uncategorized
 
 ## Version 0.18.1 (unreleased)
@@ -68,6 +71,13 @@ substitutions:
 ### Packages
 
 - {{Fix}} pillow now correctly encodes/decodes JPEG image format. {pr}`1818`
+
+### Micellaneous
+
+- {{Fix}} Patched emscripten to make the system calls to duplicate file
+  descriptors closer to posix-compliant. In particular, this fixes the use of
+  `dup` on pipes and temporary files, as needed by `pytest`.
+  {pr}`1823`
 
 ## Version 0.18.0
 
