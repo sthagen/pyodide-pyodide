@@ -4,7 +4,7 @@
 
 ## Making a release
 
-For branch organization we use a variation of the [Github
+For branch organization we use a variation of the [GitHub
 Flow](https://guides.github.com/introduction/flow/) with
 the latest release branch named `stable` (due to ReadTheDocs constraints).
 
@@ -17,7 +17,7 @@ the latest release branch named `stable` (due to ReadTheDocs constraints).
    the release version `vX.Y.Z` (note the presence of the leading `v`). This
    also applies to `docs/conf.py`
 2. Set version in `src/py/pyodide/__init__.py`
-3. Make sure the change log is up to date.
+3. Make sure the change log is up-to-date.
    - Indicate the release date in the change log.
    - Generate the list of contributors for the release at the end of the
      changelog entry with,
@@ -97,6 +97,13 @@ This can be done with either,
   and indicate which commits to take from `main` in the UI.
 
 Then follow steps 2, 3, and 6 from {ref}`making-major-release`.
+
+### Making an alpha release
+
+Follow steps 2, 3, 6, 7, and 9 from {ref}`making-major-release`. Name the first
+alpha release `x.x.xa1` and in subsequent alphas increment the final number. For
+the npm package the alpha should have version in the format `x.x.x-alpha.1`.
+
 
 ### Fixing documentation for a released version
 

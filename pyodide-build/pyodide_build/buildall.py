@@ -96,10 +96,10 @@ class Package(BasePackage):
                     args.cxxflags,
                     "--ldflags",
                     args.ldflags,
-                    "--target",
-                    args.target,
-                    "--install-dir",
-                    args.install_dir,
+                    "--target-install-dir",
+                    args.target_install_dir,
+                    "--host-install-dir",
+                    args.host_install_dir,
                 ],
                 check=False,
                 stdout=f,
@@ -122,7 +122,7 @@ class Package(BasePackage):
         else:
             (self.pkgdir / "build.log.tmp").unlink()
 
-        if args.log_dir:
+        if args.log_dir and (self.pkgdir / "build.log").exists():
             shutil.copy(
                 self.pkgdir / "build.log", Path(args.log_dir) / f"{self.name}.log"
             )
@@ -137,28 +137,29 @@ class Package(BasePackage):
 
             raise
 
-        if not self.library:
+        if self.library:
+            return
+        shutil.copyfile(
+            self.pkgdir / "build" / (self.name + ".data"),
+            outputdir / (self.name + ".data"),
+        )
+        shutil.copyfile(
+            self.pkgdir / "build" / (self.name + ".js"),
+            outputdir / (self.name + ".js"),
+        )
+        if (self.pkgdir / "build" / (self.name + "-tests.data")).exists():
             shutil.copyfile(
-                self.pkgdir / "build" / (self.name + ".data"),
-                outputdir / (self.name + ".data"),
+                self.pkgdir / "build" / (self.name + "-tests.data"),
+                outputdir / (self.name + "-tests.data"),
             )
             shutil.copyfile(
-                self.pkgdir / "build" / (self.name + ".js"),
-                outputdir / (self.name + ".js"),
+                self.pkgdir / "build" / (self.name + "-tests.js"),
+                outputdir / (self.name + "-tests.js"),
             )
-            if (self.pkgdir / "build" / (self.name + "-tests.data")).exists():
-                shutil.copyfile(
-                    self.pkgdir / "build" / (self.name + "-tests.data"),
-                    outputdir / (self.name + "-tests.data"),
-                )
-                shutil.copyfile(
-                    self.pkgdir / "build" / (self.name + "-tests.js"),
-                    outputdir / (self.name + "-tests.js"),
-                )
 
 
 def generate_dependency_graph(
-    packages_dir: Path, packages: Optional[Set[str]]
+    packages_dir: Path, packages: Set[str]
 ) -> Dict[str, BasePackage]:
     """This generates a dependency graph for listed packages.
 
@@ -182,10 +183,15 @@ def generate_dependency_graph(
 
     pkg_map: Dict[str, BasePackage] = {}
 
-    if packages is None:
-        packages = set(
+    if "*" in packages:
+        packages.discard("*")
+        packages.update(
             str(x) for x in packages_dir.iterdir() if (x / "meta.yaml").is_file()
         )
+
+    no_numpy_dependents = "no-numpy-dependents" in packages
+    if no_numpy_dependents:
+        packages.discard("no-numpy-dependents")
 
     while packages:
         pkgname = packages.pop()
@@ -195,6 +201,8 @@ def generate_dependency_graph(
             pkg = StdLibPackage(packages_dir / pkgname)
         else:
             pkg = Package(packages_dir / pkgname)
+        if no_numpy_dependents and "numpy" in pkg.dependencies:
+            continue
         pkg_map[pkg.name] = pkg
 
         for dep in pkg.dependencies:
@@ -207,6 +215,13 @@ def generate_dependency_graph(
             pkg_map[dep].dependents.add(pkg.name)
 
     return pkg_map
+
+
+def job_priority(pkg: BasePackage):
+    if pkg.name == "numpy":
+        return 0
+    else:
+        return 1
 
 
 def build_from_graph(pkg_map: Dict[str, BasePackage], outputdir: Path, args) -> None:
@@ -223,7 +238,7 @@ def build_from_graph(pkg_map: Dict[str, BasePackage], outputdir: Path, args) -> 
     threads listening to build_queue. When the thread is free, it takes an
     item off build_queue and builds it. Once the package is built, it sends the
     package to the built_queue. The main thread listens to the built_queue and
-    checks if any of the dependents are ready to be built. If so, it add the
+    checks if any of the dependents are ready to be built. If so, it adds the
     package to the build queue.
     """
 
@@ -232,10 +247,10 @@ def build_from_graph(pkg_map: Dict[str, BasePackage], outputdir: Path, args) -> 
     build_queue: PriorityQueue = PriorityQueue()
 
     print("Building the following packages: " + ", ".join(sorted(pkg_map.keys())))
-
+    t0 = perf_counter()
     for pkg in pkg_map.values():
         if len(pkg.dependencies) == 0:
-            build_queue.put(pkg)
+            build_queue.put((job_priority(pkg), pkg))
 
     built_queue: Queue = Queue()
     thread_lock = Lock()
@@ -244,7 +259,7 @@ def build_from_graph(pkg_map: Dict[str, BasePackage], outputdir: Path, args) -> 
     def builder(n):
         nonlocal queue_idx
         while True:
-            pkg = build_queue.get()
+            pkg = build_queue.get()[1]
             with thread_lock:
                 pkg._queue_idx = queue_idx
                 queue_idx += 1
@@ -259,7 +274,7 @@ def build_from_graph(pkg_map: Dict[str, BasePackage], outputdir: Path, args) -> 
 
             print(
                 f"[{pkg._queue_idx}/{len(pkg_map)}] (thread {n}) "
-                f"built {pkg.name} in {perf_counter() - t0:.1f} s"
+                f"built {pkg.name} in {perf_counter() - t0:.2f} s"
             )
             built_queue.put(pkg)
             # Release the GIL so new packages get queued
@@ -280,11 +295,16 @@ def build_from_graph(pkg_map: Dict[str, BasePackage], outputdir: Path, args) -> 
             dependent = pkg_map[_dependent]
             dependent.unbuilt_dependencies.remove(pkg.name)
             if len(dependent.unbuilt_dependencies) == 0:
-                build_queue.put(dependent)
+                build_queue.put((job_priority(dependent), dependent))
 
     for name in list(pkg_map):
         if (outputdir / (name + "-tests.js")).exists():
             pkg_map[name].unvendored_tests = True
+
+    print(
+        "\n===================================================\n"
+        f"built all packages in {perf_counter() - t0:.2f} s"
+    )
 
 
 def generate_packages_json(pkg_map: Dict[str, BasePackage]) -> Dict:
@@ -358,7 +378,7 @@ def build_packages(packages_dir: Path, outputdir: Path, args) -> None:
 
 def make_parser(parser):
     parser.description = (
-        "Build all of the packages in a given directory\n\n"
+        "Build all the packages in a given directory\n\n"
         "Unless the --only option is provided\n\n"
         "Note: this is a private endpoint that should not be used "
         "outside of the pyodide Makefile."
@@ -397,22 +417,18 @@ def make_parser(parser):
         help="Extra linking flags. Default: SIDE_MODULE_LDFLAGS",
     )
     parser.add_argument(
-        "--target",
+        "--target-install-dir",
         type=str,
         nargs="?",
         default=None,
-        help="The path to the target Python installation. Default: TARGETPYTHONROOT",
+        help="The path to the target Python installation. Default: TARGETINSTALLDIR",
     )
     parser.add_argument(
-        "--install-dir",
+        "--host-install-dir",
         type=str,
         nargs="?",
-        default="",
-        help=(
-            "Directory for installing built host packages. Defaults to setup.py "
-            "default. Set to 'skip' to skip installation. Installation is "
-            "needed if you want to build other packages that depend on this one."
-        ),
+        default=None,
+        help=("Directory for installing built host packages. Default: HOSTINSTALLDIR"),
     )
     parser.add_argument(
         "--log-dir",
@@ -448,9 +464,10 @@ def main(args):
         args.cxxflags = common.get_make_flag("SIDE_MODULE_CXXFLAGS")
     if args.ldflags is None:
         args.ldflags = common.get_make_flag("SIDE_MODULE_LDFLAGS")
-    if args.target is None:
-        args.target = common.get_make_flag("TARGETPYTHONROOT")
-
+    if args.target_install_dir is None:
+        args.target_install_dir = common.get_make_flag("TARGETINSTALLDIR")
+    if args.host_install_dir is None:
+        args.host_install_dir = common.get_make_flag("HOSTINSTALLDIR")
     build_packages(packages_dir, outputdir, args)
 
 

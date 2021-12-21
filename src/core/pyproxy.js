@@ -3,9 +3,6 @@
  * the callPyObject method, but of course one can also execute arbitrary code
  * via the various __dundermethods__ associated to classes.
  *
- * The only entrypoint into Python that avoids this file is our bootstrap method
- * runPythonSimple which is defined in main.c
- *
  * Any time we call into wasm, the call should be wrapped in a try catch block.
  * This way if a JavaScript error emerges from the wasm, we can escalate it to a
  * fatal error.
@@ -31,6 +28,8 @@ Module.isPyProxy = isPyProxy;
 
 if (globalThis.FinalizationRegistry) {
   Module.finalizationRegistry = new FinalizationRegistry(([ptr, cache]) => {
+    cache.leaked = true;
+    pyproxy_decref_cache(cache);
     try {
       Module._Py_DecRef(ptr);
     } catch (e) {
@@ -201,10 +200,10 @@ function pyproxy_decref_cache(cache) {
   if (cache.refcnt === 0) {
     let cache_map = Module.hiwire.pop_value(cache.cacheId);
     for (let proxy_id of cache_map.values()) {
-      Module.pyproxy_destroy(
-        Module.hiwire.pop_value(proxy_id),
-        pyproxy_cache_destroyed_msg
-      );
+      const cache_entry = Module.hiwire.pop_value(proxy_id);
+      if (!cache.leaked) {
+        Module.pyproxy_destroy(cache_entry, pyproxy_cache_destroyed_msg);
+      }
     }
   }
 }
@@ -358,9 +357,9 @@ class PyProxyClass {
    * generated structure. The most common use case is to create a new empty
    * list, pass the list as `pyproxies`, and then later iterate over `pyproxies`
    * to destroy all of created proxies.
-   * @param {bool} [options.create_pyproxies] If false, ``toJs`` will throw a
+   * @param {boolean} [options.create_pyproxies] If false, ``toJs`` will throw a
    * ``ConversionError`` rather than producing a ``PyProxy``.
-   * @param {bool} [options.dict_converter] A function to be called on an
+   * @param {boolean} [options.dict_converter] A function to be called on an
    * iterable of pairs ``[key, value]``. Convert this iterable of pairs to the
    * desired output. For instance, ``Object.fromEntries`` would convert the dict
    * to an object, ``Array.from`` converts it to an array of entries, and ``(it) =>
@@ -951,6 +950,9 @@ class PyProxyAwaitableMethods {
    * @private
    */
   _ensure_future() {
+    if (this.$$.promise) {
+      return this.$$.promise;
+    }
     let ptrobj = _getPtr(this);
     let resolveHandle;
     let rejectHandle;
@@ -976,6 +978,8 @@ class PyProxyAwaitableMethods {
     if (errcode === -1) {
       Module._pythonexc2js();
     }
+    this.$$.promise = promise;
+    this.destroy();
     return promise;
   }
   /**
@@ -1423,51 +1427,4 @@ export class PyBuffer {
     this._released = true;
     this.data = null;
   }
-}
-
-// A special proxy that we use to wrap pyodide.globals to allow property
-// access like `pyodide.globals.x`.
-let globalsPropertyAccessWarned = false;
-let globalsPropertyAccessWarningMsg =
-  "Access to pyodide.globals via pyodide.globals.key is deprecated and " +
-  "will be removed in version 0.18.0. Use pyodide.globals.get('key'), " +
-  "pyodide.globals.set('key', value), pyodide.globals.delete('key') instead.";
-let NamespaceProxyHandlers = {
-  has(obj, key) {
-    return Reflect.has(obj, key) || obj.has(key);
-  },
-  get(obj, key) {
-    if (Reflect.has(obj, key)) {
-      return Reflect.get(obj, key);
-    }
-    let result = obj.get(key);
-    if (!globalsPropertyAccessWarned && result !== undefined) {
-      console.warn(globalsPropertyAccessWarningMsg);
-      globalsPropertyAccessWarned = true;
-    }
-    return result;
-  },
-  set(obj, key, value) {
-    if (Reflect.has(obj, key)) {
-      throw new Error(`Cannot set read only field ${key}`);
-    }
-    if (!globalsPropertyAccessWarned) {
-      globalsPropertyAccessWarned = true;
-      console.warn(globalsPropertyAccessWarningMsg);
-    }
-    obj.set(key, value);
-  },
-  ownKeys(obj) {
-    let result = new Set(Reflect.ownKeys(obj));
-    let iter = obj.keys();
-    for (let key of iter) {
-      result.add(key);
-    }
-    iter.destroy();
-    return Array.from(result);
-  },
-};
-
-export function wrapNamespace(ns) {
-  return new Proxy(ns, NamespaceProxyHandlers);
 }

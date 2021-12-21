@@ -27,8 +27,8 @@ async function main() {
       indexURL: "blah",
       fullStdLib: true,
       stdin: () => "a string",
-      stdout: (x) => {},
-      stderr: (err) => {},
+      stdout: (x: string) => {},
+      stderr: (err: string) => {},
     })
   );
 
@@ -49,29 +49,32 @@ async function main() {
 
   expectType<Promise<void>>(pyodide.loadPackagesFromImports("import some_pkg"));
   expectType<Promise<void>>(
-    pyodide.loadPackagesFromImports("import some_pkg", (x) => console.log(x))
+    pyodide.loadPackagesFromImports("import some_pkg", (x: any) =>
+      console.log(x)
+    )
   );
   expectType<Promise<void>>(
     pyodide.loadPackagesFromImports(
       "import some_pkg",
-      (x) => console.log(x),
-      (x) => console.warn(x)
+      (x: any) => console.log(x),
+      (x: any) => console.warn(x)
     )
   );
 
   expectType<Promise<void>>(pyodide.loadPackage("blah"));
   expectType<Promise<void>>(pyodide.loadPackage(["blah", "blah2"]));
-  expectType<Promise<void>>(pyodide.loadPackage("blah", (x) => console.log(x)));
+  expectType<Promise<void>>(
+    pyodide.loadPackage("blah", (x: any) => console.log(x))
+  );
   expectType<Promise<void>>(
     pyodide.loadPackage(
       ["blah", "blah2"],
-      (x) => console.log(x),
-      (x) => console.warn(x)
+      (x: any) => console.log(x),
+      (x: any) => console.warn(x)
     )
   );
   expectType<Promise<void>>(pyodide.loadPackage(px));
 
-  expectType<Py2JsResult>(pyodide.pyimport("blah"));
   expectType<PyProxy>(pyodide.pyodide_py);
   expectType<void>(pyodide.registerJsModule("blah", { a: 7 }));
   expectType<void>(pyodide.unregisterJsModule("blah"));

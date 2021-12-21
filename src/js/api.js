@@ -8,6 +8,7 @@ export { loadPackage, loadedPackages, isPyProxy };
  * @typedef {import('./pyproxy.gen').PyProxy} PyProxy
  * @typedef {import('./pyproxy.gen').TypedArray} TypedArray
  * @typedef {import('emscripten')} Emscripten
+ * @typedef {import('emscripten').Module.FS} FS
  */
 
 /**
@@ -18,7 +19,7 @@ export { loadPackage, loadedPackages, isPyProxy };
  *
  * @type {PyProxy}
  */
-let pyodide_py = {}; // actually defined in runPythonSimple in loadPyodide (see pyodide.js)
+let pyodide_py = {}; // actually defined in loadPyodide (see pyodide.js)
 
 /**
  *
@@ -29,7 +30,7 @@ let pyodide_py = {}; // actually defined in runPythonSimple in loadPyodide (see 
  *
  * @type {PyProxy}
  */
-let globals = {}; // actually defined in runPythonSimple in loadPyodide (see pyodide.js)
+let globals = {}; // actually defined in loadPyodide (see pyodide.js)
 
 /**
  * A JavaScript error caused by a Python exception.
@@ -74,7 +75,7 @@ export class PythonError {
  *
  * @type {string}
  */
-export let version = ""; // actually defined in runPythonSimple in loadPyodide (see pyodide.js)
+export let version = ""; // actually defined in loadPyodide (see pyodide.js)
 
 /**
  * Runs a string of Python code from JavaScript.
@@ -83,7 +84,7 @@ export let version = ""; // actually defined in runPythonSimple in loadPyodide (
  * is returned.
  *
  * @param {string} code Python code to evaluate
- * @param {PyProxy} globals An optional Python dictionary to use as the globals.
+ * @param {PyProxy=} globals An optional Python dictionary to use as the globals.
  *        Defaults to :any:`pyodide.globals`. Uses the Python API
  *        :any:`pyodide.eval_code` to evaluate the code.
  * @returns {Py2JsResult} The result of the Python code translated to JavaScript. See the
@@ -151,22 +152,6 @@ export async function loadPackagesFromImports(
 }
 
 /**
- * Access a Python object in the global namespace from JavaScript.
- *
- * @deprecated This function will be removed in version 0.18.0. Use
- *    :any:`pyodide.globals.get('key') <pyodide.globals>` instead.
- *
- * @param {string} name Python variable name
- * @returns {Py2JsResult} The Python object translated to JavaScript.
- */
-export function pyimport(name) {
-  console.warn(
-    "Access to the Python global namespace via pyodide.pyimport is deprecated and " +
-      "will be removed in version 0.18.0. Use pyodide.globals.get('key') instead."
-  );
-  return Module.globals.get(name);
-}
-/**
  * Runs Python code using `PyCF_ALLOW_TOP_LEVEL_AWAIT
  * <https://docs.python.org/3/library/ast.html?highlight=pycf_allow_top_level_await#ast.PyCF_ALLOW_TOP_LEVEL_AWAIT>`_.
  *
@@ -191,16 +176,14 @@ export function pyimport(name) {
  *    console.log(result); // 79
  *
  * @param {string} code Python code to evaluate
+ * @param {PyProxy=} globals An optional Python dictionary to use as the globals.
+ *        Defaults to :any:`pyodide.globals`. Uses the Python API
+ *        :any:`pyodide.eval_code_async` to evaluate the code.
  * @returns {Py2JsResult} The result of the Python code translated to JavaScript.
  * @async
  */
-export async function runPythonAsync(code) {
-  let coroutine = Module.pyodide_py.eval_code_async(code, Module.globals);
-  try {
-    return await coroutine;
-  } finally {
-    coroutine.destroy();
-  }
+export async function runPythonAsync(code, globals = Module.globals) {
+  return await Module.pyodide_py.eval_code_async(code, globals);
 }
 Module.runPythonAsync = runPythonAsync;
 
@@ -253,7 +236,7 @@ export function unregisterJsModule(name) {
  *
  * @param {*} obj
  * @param {object} options
- * @param {number} options.depth Optional argument to limit the depth of the
+ * @param {number=} options.depth Optional argument to limit the depth of the
  * conversion.
  * @returns {PyProxy} The object converted to Python.
  */
@@ -298,6 +281,56 @@ export function toPy(obj, { depth = -1 } = {}) {
     Module._Py_DecRef(py_result);
   }
   return Module.hiwire.pop_value(result);
+}
+
+/**
+ * Imports a module and returns it.
+ * Warning: this function has a completely different behavior than the old removed pyimport function!
+ * ``pyimport`` is roughly equivalent to:
+ *
+ * .. code-block:: pyodide
+ *
+ *      pyodide.runPython(`import ${pkgname}; ${pkgname}`);
+ *
+ * except that the global namespace will not change.
+ * Example:
+ *
+ * .. code-block:: pyodide
+ *
+ *    let sysmodule = pyodide.pyimport("sys");
+ *    let recursionLimit = sys.getrecursionlimit();
+ *
+ * The best way to run Python code with Pyodide is
+ * 1. write a Python package,
+ * 2. load your Python package into the Pyodide (Emscripten) file system,
+ * 3. import the package with `let mypkg = pyodide.pyimport("mypkgname")`,
+ * 4. call into your package with `mypkg.some_api(some_args)`.
+ *
+ * @param {string} mod_name The name of the module to import
+ * @returns A PyProxy for the imported module
+ */
+export function pyimport(mod_name) {
+  return Module.importlib.import_module(mod_name);
+}
+
+/**
+ * Unpack an archive into a target directory.
+ *
+ * @param {ArrayBuffer} buffer The archive as an ArrayBuffer (it's also fine to pass a TypedArray).
+ * @param {string} format The format of the archive. Should be one of the formats recognized by `shutil.unpack_archive`.
+ * By default the options are 'bztar', 'gztar', 'tar', 'zip', and 'wheel'. Several synonyms are accepted for each format, e.g.,
+ * for 'gztar' any of '.gztar', '.tar.gz', '.tgz', 'tar.gz' or 'tgz' are considered to be synonyms.
+ *
+ * @param {string=} extract_dir The directory to unpack the archive into. Defaults to the working directory.
+ */
+export function unpackArchive(buffer, format, extract_dir) {
+  if (!Module._util_module) {
+    Module._util_module = pyimport("pyodide._util");
+  }
+  Module._util_module.unpack_buffer_archive.callKwargs(buffer, {
+    format,
+    extract_dir,
+  });
 }
 
 /**
@@ -351,12 +384,12 @@ export function makePublicAPI() {
    * which can be used to extend the in-memory filesystem with features like `persistence
    * <https://emscripten.org/docs/api_reference/Filesystem-API.html#persistent-data>`_.
    *
-   * While all of the file systems implementations are enabled, only the default
+   * While all the file systems implementations are enabled, only the default
    * ``MEMFS`` is guaranteed to work in all runtime settings. The implementations
    * are available as members of ``FS.filesystems``:
    * ``IDBFS``, ``NODEFS``, ``PROXYFS``, ``WORKERFS``.
    *
-   * @type {FS} The Emscripten File System API.
+   * @type {FS}
    */
   const FS = Module.FS;
   let namespace = {
@@ -368,7 +401,6 @@ export function makePublicAPI() {
     loadPackagesFromImports,
     loadedPackages,
     isPyProxy,
-    pyimport,
     runPython,
     runPythonAsync,
     registerJsModule,
@@ -376,6 +408,8 @@ export function makePublicAPI() {
     setInterruptBuffer,
     checkInterrupt,
     toPy,
+    pyimport,
+    unpackArchive,
     registerComlink,
     PythonError,
     PyBuffer,
