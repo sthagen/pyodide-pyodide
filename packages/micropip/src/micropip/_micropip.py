@@ -59,7 +59,6 @@ if IN_BROWSER:
     async def fetch_string(url: str, **kwargs) -> str:
         return await (await pyfetch(url, **kwargs)).string()
 
-
 else:
     from urllib.request import urlopen, Request
 
@@ -402,7 +401,7 @@ def _list():
 
     Returns
     -------
-    packages : {class}`~micropip.package.PackageDict``
+    packages : :any:`micropip.package.PackageDict`
         A dictionary of installed packages.
 
         >>> import micropip
