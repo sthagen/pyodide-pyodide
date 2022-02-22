@@ -1,13 +1,12 @@
-from pathlib import Path
-from typing import Optional, Set
-
 import functools
 import subprocess
+from pathlib import Path
+from typing import Optional
 
 UNVENDORED_STDLIB_MODULES = ["test", "distutils"]
 
 
-def _parse_package_subset(query: Optional[str]) -> Set[str]:
+def _parse_package_subset(query: Optional[str]) -> set[str]:
     """Parse the list of packages specified with PYODIDE_PACKAGES env var.
 
     Also add the list of mandatory packages: ["pyparsing", "packaging",
@@ -42,6 +41,7 @@ def _parse_package_subset(query: Optional[str]) -> Set[str]:
         "regex",
         "fpcast-test",
         "sharedlib-test-py",
+        "cpp-exceptions-test",
     }
     core_scipy_packages = {
         "numpy",
@@ -54,6 +54,7 @@ def _parse_package_subset(query: Optional[str]) -> Set[str]:
     }
     packages = {el.strip() for el in query.split(",")}
     packages.update(["pyparsing", "packaging", "micropip"])
+    packages.update(UNVENDORED_STDLIB_MODULES)
     # handle meta-packages
     if "core" in packages:
         packages |= core_packages
@@ -125,7 +126,7 @@ def get_make_flag(name):
     return get_make_environment_vars()[name]
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def get_make_environment_vars():
     """Load environment variables from Makefile.envs
 
