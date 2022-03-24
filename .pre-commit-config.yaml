@@ -1,30 +1,34 @@
-exclude: '^.*patches|.*\.cgi$'
+exclude: (^.*patches|.*\.cgi$|^packages/micropip/src/micropip/externals|^benchmark/benchmarks$)
 default_language_version:
-  python: "3.9"
+  python: "3.10"
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: "v4.1.0"
     hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
       - id: check-yaml
         exclude: .clang-format
+      - id: debug-statements
       - id: end-of-file-fixer
+      - id: mixed-line-ending
       - id: trailing-whitespace
 
   - repo: https://github.com/PyCQA/isort
     rev: "5.10.1"
     hooks:
       - id: isort
-        exclude: ^packages/micropip/src/micropip/externals
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: "v2.31.0"
+    rev: "v2.31.1"
     hooks:
       - id: pyupgrade
         args: ["--py39-plus"]
-        exclude: ^packages/micropip/src/micropip/externals
 
   - repo: https://github.com/hadialqattan/pycln
-    rev: "v1.1.0"
+    rev: "v1.2.5"
     hooks:
       - id: pycln
         args: [--config=pyproject.toml]
@@ -35,16 +39,14 @@ repos:
     hooks:
       - id: black
 
-  - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.9.2
+  - repo: https://github.com/pycqa/flake8
+    rev: "4.0.1"
     hooks:
       - id: flake8
-        types: [file, python]
-        # only check for unused imports, as the rest is done by black
-        args: [--select=F401]
+        additional_dependencies: [flake8-bugbear]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.931
+    rev: "v0.940"
     hooks:
       - id: mypy
         args:
@@ -69,11 +71,38 @@ repos:
         additional_dependencies: *mypy-deps
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: "v13.0.0"
+    rev: "v13.0.1"
     hooks:
       - id: clang-format
+        types_or: [c++, c, cuda]
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: "v2.5.1"
     hooks:
       - id: prettier
+
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: "v1.9.0"
+    hooks:
+      - id: python-check-blanket-noqa
+      - id: python-check-blanket-type-ignore
+      - id: python-no-log-warn
+      - id: python-no-eval
+        exclude: ^(src/py/_pyodide/_base\.py|src/tests/test_typeconversions\.py)$
+      - id: python-use-type-annotations
+        exclude: docs/sphinx_pyodide/tests/test_directives\.py
+      - id: rst-backticks
+      - id: rst-directive-colons
+      - id: rst-inline-touching-normal
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: "v0.8.0.4"
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: "v2.1.0"
+    hooks:
+      - id: codespell
+        args: ["-L", "te,slowy,aray,ba,nd,classs"]
+        exclude: ^benchmark/benchmarks/pystone_benchmarks/pystone\.py$

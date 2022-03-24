@@ -1,4 +1,6 @@
 # See also test_pyproxy, test_jsproxy, and test_python.
+from typing import Any
+
 import pytest
 from hypothesis import assume, given, settings, strategies
 from hypothesis.strategies import from_type, text
@@ -20,7 +22,7 @@ def test_string_conversion(selenium_module_scope, s):
             pyodide.runPython('spy = bytes({sbytes}).decode()');
             """
         )
-        assert selenium.run_js(f"""return pyodide.runPython('spy') === sjs;""")
+        assert selenium.run_js("""return pyodide.runPython('spy') === sjs;""")
         assert selenium.run(
             """
             from js import sjs
@@ -77,7 +79,7 @@ def test_number_conversions(selenium_module_scope, n):
             `);
             """
         )
-        assert selenium.run_js(f"""return pyodide.runPython('x_py') === x_js;""")
+        assert selenium.run_js("""return pyodide.runPython('x_py') === x_js;""")
         assert selenium.run(
             """
             from js import x_js
@@ -160,11 +162,11 @@ def test_hyp_py2js2py(selenium_module_scope, obj):
         # have to defend against them here.
         try:
             assume(obj == obj)
-        except:
+        except Exception:
             assume(False)
         try:
             obj_bytes = list(pickle.dumps(obj))
-        except:
+        except Exception:
             assume(False)
         selenium.run(
             f"""
@@ -222,7 +224,7 @@ def test_hyp_tojs_no_crash(selenium_module_scope, obj):
 
         try:
             obj_bytes = list(pickle.dumps(obj))
-        except:
+        except Exception:
             assume(False)
         selenium.run(
             f"""
@@ -320,7 +322,7 @@ def test_python2js_track_proxies(selenium):
         function check(l){
             for(let x of l){
                 if(pyodide.isPyProxy(x)){
-                    assert(() => x.$$.ptr === null);
+                    assert(() => x.$$.ptr === 0);
                 } else {
                     check(x);
                 }
@@ -667,7 +669,7 @@ def assert_py_to_js_to_py(selenium, name):
 
 @run_in_pyodide
 def test_recursive_list_to_js():
-    x = []
+    x: Any = []
     x.append(x)
     from pyodide import to_js
 
@@ -676,7 +678,7 @@ def test_recursive_list_to_js():
 
 @run_in_pyodide
 def test_recursive_dict_to_js():
-    x = {}
+    x: Any = {}
     x[0] = x
     from pyodide import to_js
 
@@ -1219,6 +1221,72 @@ def test_to_py_default_converter2(selenium):
     )
 
 
+def test_to_js_default_converter(selenium):
+    selenium.run_js(
+        """
+        p = pyodide.runPython(`
+        class Pair:
+            def __init__(self, first, second):
+                self.first = first
+                self.second = second
+        p = Pair(1,2)
+        p
+        `);
+        let res = p.toJs({ default_converter(x, convert, cacheConversion){
+            let result = [];
+            cacheConversion(x, result);
+            result.push(convert(x.first));
+            result.push(convert(x.second));
+            return result;
+        }});
+        assert(() => res[0] === 1);
+        assert(() => res[1] === 2);
+        p.first = p;
+        let res2 = p.toJs({ default_converter(x, convert, cacheConversion){
+            let result = [];
+            cacheConversion(x, result);
+            result.push(convert(x.first));
+            result.push(convert(x.second));
+            return result;
+        }});
+        assert(() => res2[0] === res2);
+        assert(() => res2[1] === 2);
+        p.destroy();
+        """
+    )
+
+
+def test_to_js_default_converter2(selenium):
+    selenium.run_js(
+        """
+        let res = pyodide.runPython(`
+        class Pair:
+            def __init__(self, first, second):
+                self.first = first
+                self.second = second
+        p = Pair(1,2)
+        from js import Array
+        def default_converter(value, convert, cacheConversion):
+            result = Array.new()
+            cacheConversion(value, result)
+            result.push(convert(value.first))
+            result.push(convert(value.second))
+            return result
+        from pyodide import to_js
+        to_js(p, default_converter=default_converter)
+        `);
+        assert(() => res[0] === 1);
+        assert(() => res[1] === 2);
+        let res2 = pyodide.runPython(`
+        p.first = p
+        to_js(p, default_converter=default_converter)
+        `);
+        assert(() => res2[0] === res2);
+        assert(() => res2[1] === 2);
+        """
+    )
+
+
 def test_buffer_format_string(selenium):
     errors = [
         ["aaa", "Expected format string to have length <= 2, got 'aaa'"],
@@ -1236,25 +1304,25 @@ def test_buffer_format_string(selenium):
             )
 
     format_tests = [
-        ["c", "Uint8"],
-        ["b", "Int8"],
-        ["B", "Uint8"],
-        ["?", "Uint8"],
-        ["h", "Int16"],
-        ["H", "Uint16"],
-        ["i", "Int32"],
-        ["I", "Uint32"],
-        ["l", "Int32"],
-        ["L", "Uint32"],
-        ["n", "Int32"],
-        ["N", "Uint32"],
-        ["q", "BigInt64"],
-        ["Q", "BigUint64"],
-        ["f", "Float32"],
-        ["d", "Float64"],
-        ["s", "Uint8"],
-        ["p", "Uint8"],
-        ["P", "Uint32"],
+        ("c", "Uint8"),
+        ("b", "Int8"),
+        ("B", "Uint8"),
+        ("?", "Uint8"),
+        ("h", "Int16"),
+        ("H", "Uint16"),
+        ("i", "Int32"),
+        ("I", "Uint32"),
+        ("l", "Int32"),
+        ("L", "Uint32"),
+        ("n", "Int32"),
+        ("N", "Uint32"),
+        ("q", "BigInt64"),
+        ("Q", "BigUint64"),
+        ("f", "Float32"),
+        ("d", "Float64"),
+        ("s", "Uint8"),
+        ("p", "Uint8"),
+        ("P", "Uint32"),
     ]
 
     def process_fmt_string(fmt):
@@ -1275,11 +1343,11 @@ def test_buffer_format_string(selenium):
         assert array_name == expected_array_name
 
     endian_tests = [
-        ["@h", "Int16", False],
-        ["=H", "Uint16", False],
-        ["<i", "Int32", False],
-        [">I", "Uint32", True],
-        ["!l", "Int32", True],
+        ("@h", "Int16", False),
+        ("=H", "Uint16", False),
+        ("<i", "Int32", False),
+        (">I", "Uint32", True),
+        ("!l", "Int32", True),
     ]
 
     for fmt, expected_array_name, expected_is_big_endian in endian_tests:

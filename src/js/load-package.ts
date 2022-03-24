@@ -46,7 +46,7 @@ const DEFAULT_CHANNEL = "default channel";
 // Regexp for validating package name and URI
 const package_uri_regexp = /^.*?([^\/]*)\.whl$/;
 
-function _uri_to_package_name(package_uri: string): string {
+function _uri_to_package_name(package_uri: string): string | undefined {
   let match = package_uri_regexp.exec(package_uri);
   if (match) {
     let wheel_name = match[1].toLowerCase();
@@ -202,6 +202,7 @@ function createLock() {
     let releaseLock: () => void;
     _lock = new Promise((resolve) => (releaseLock = resolve));
     await old_lock;
+    // @ts-ignore
     return releaseLock;
   }
   return acquireLock;
@@ -223,14 +224,24 @@ const acquireDynlibLock = createLock();
  * @private
  */
 async function loadDynlib(lib: string, shared: boolean) {
-  const byteArray = Module.FS.lookupPath(lib).node.contents;
+  const node = Module.FS.lookupPath(lib).node;
+  let byteArray;
+  if (node.mount.type == Module.FS.filesystems.MEMFS) {
+    byteArray = Module.FS.filesystems.MEMFS.getFileDataAsTypedArray(
+      Module.FS.lookupPath(lib).node
+    );
+  } else {
+    byteArray = Module.FS.readFile(lib);
+  }
   const releaseDynlibLock = await acquireDynlibLock();
   try {
     const module = await Module.loadWebAssemblyModule(byteArray, {
       loadAsync: true,
       nodelete: true,
+      allowUndefined: true,
     });
     Module.preloadedWasm[lib] = module;
+    Module.preloadedWasm[lib.split("/").pop()!] = module;
     if (shared) {
       Module.loadDynamicLibrary(lib, {
         global: true,
@@ -285,7 +296,7 @@ export async function loadPackage(
     toLoad.delete(pkg);
     toLoadShared.delete(pkg);
     // If uri is from the DEFAULT_CHANNEL, we assume it was added as a
-    // depedency, which was previously overridden.
+    // dependency, which was previously overridden.
     if (loaded === uri || uri === DEFAULT_CHANNEL) {
       messageCallback(`${pkg} already loaded from ${loaded}`);
     } else {

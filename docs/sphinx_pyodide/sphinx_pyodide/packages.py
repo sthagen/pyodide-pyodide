@@ -61,7 +61,7 @@ def get_packages_summary_directive(app):
             )
 
         def format_packages_table(
-            self, packages: dict[str, Any], columns: tuple[str]
+            self, packages: dict[str, Any], columns: tuple[str, ...]
         ) -> list[Any]:
             table_spec = addnodes.tabular_col_spec()
             table_spec["spec"] = r"\X{1}{2}\X{1}{2}"
@@ -83,7 +83,7 @@ def get_packages_summary_directive(app):
             group += thead
 
             rows = []
-            for name, pkg_info in packages.items():
+            for pkg_info in packages.values():
                 row = nodes.row()
                 rows.append(row)
                 for column in columns:

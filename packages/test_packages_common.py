@@ -5,6 +5,7 @@ import pytest
 
 from conftest import ROOT_PATH, built_packages
 from pyodide_build.io import parse_package_config
+from pyodide_build.testing import PYVERSION
 
 PKG_DIR = ROOT_PATH / "packages"
 
@@ -32,7 +33,7 @@ def registered_packages_meta():
 UNSUPPORTED_PACKAGES: dict[str, list[str]] = {
     "chrome": [],
     "firefox": [],
-    "node": [],
+    "node": ["cmyt", "yt"],
 }
 if "CI" in os.environ:
     UNSUPPORTED_PACKAGES["chrome"].extend(["statsmodels"])
@@ -43,11 +44,11 @@ def test_parse_package(name):
     # check that we can parse the meta.yaml
     meta = parse_package_config(PKG_DIR / name / "meta.yaml")
 
-    skip_host = meta.get("build", {}).get("skip_host", True)
-    if name == "numpy":
-        assert skip_host is False
-    elif name == "pandas":
-        assert skip_host is True
+    sharedlibrary = meta.get("build", {}).get("sharedlibrary", False)
+    if name == "sharedlib-test":
+        assert sharedlibrary is True
+    elif name == "sharedlib-test-py":
+        assert sharedlibrary is False
 
 
 @pytest.mark.skip_refcount_check
@@ -72,9 +73,9 @@ def test_import(name, selenium_standalone):
     selenium_standalone.run("import glob, os")
 
     baseline_pyc = selenium_standalone.run(
-        """
+        f"""
         len(list(glob.glob(
-            '/lib/python3.9/site-packages/**/*.pyc',
+            '/lib/{PYVERSION}/site-packages/**/*.pyc',
             recursive=True)
         ))
         """
@@ -85,9 +86,9 @@ def test_import(name, selenium_standalone):
         # files
         assert (
             selenium_standalone.run(
-                """
+                f"""
                 len(list(glob.glob(
-                    '/lib/python3.9/site-packages/**/*.pyc',
+                    '/lib/{PYVERSION}/site-packages/**/*.pyc',
                     recursive=True)
                 ))
                 """
@@ -97,9 +98,9 @@ def test_import(name, selenium_standalone):
         # Make sure no exe files were loaded!
         assert (
             selenium_standalone.run(
-                """
+                f"""
                 len(list(glob.glob(
-                    '/lib/python3.9/site-packages/**/*.exe',
+                    '/lib/{PYVERSION}/site-packages/**/*.exe',
                     recursive=True)
                 ))
                 """

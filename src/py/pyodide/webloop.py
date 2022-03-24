@@ -216,14 +216,14 @@ class WebLoop(asyncio.AbstractEventLoop):
         self._check_closed()
         if self._task_factory is None:
             task = asyncio.tasks.Task(coro, loop=self, name=name)
-            if task._source_traceback:
+            if task._source_traceback:  # type: ignore[attr-defined]
                 # Added comment:
                 # this only happens if get_debug() returns True.
                 # In that case, remove create_task from _source_traceback.
-                del task._source_traceback[-1]
+                del task._source_traceback[-1]  # type: ignore[attr-defined]
         else:
             task = self._task_factory(self, coro)
-            asyncio.tasks._set_task_name(task, name)
+            asyncio.tasks._set_task_name(task, name)  # type: ignore[attr-defined]
 
         return task
 
@@ -373,7 +373,8 @@ class WebLoop(asyncio.AbstractEventLoop):
                     traceback.print_exc()
 
 
-class WebLoopPolicy(asyncio.DefaultEventLoopPolicy):  # type: ignore
+# Type issue fixed in next release of mypy (0.940)
+class WebLoopPolicy(asyncio.DefaultEventLoopPolicy):  # type: ignore[misc, valid-type]
     """
     A simple event loop policy for managing WebLoop based event loops.
     """
@@ -389,7 +390,7 @@ class WebLoopPolicy(asyncio.DefaultEventLoopPolicy):  # type: ignore
 
     def new_event_loop(self):
         """Create a new event loop"""
-        self._default_loop = WebLoop()
+        self._default_loop = WebLoop()  # type: ignore[abstract]
         return self._default_loop
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop):
