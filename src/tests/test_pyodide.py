@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from pyodide import CodeRunner, eval_code, find_imports, should_quiet  # noqa: E402
-from pyodide_build.testing import PYVERSION, run_in_pyodide
+from pyodide_build.testing import run_in_pyodide
 
 
 def test_find_imports():
@@ -168,6 +168,33 @@ def test_eval_code_locals():
     with pytest.raises(NameError):
         eval_code("invalidate_caches()", globals, globals)
     eval_code("invalidate_caches()", globals, locals)
+
+
+def test_deprecations(selenium_standalone):
+    selenium = selenium_standalone
+    selenium.run_js(
+        """
+        let d = pyodide.runPython("{}");
+        pyodide.runPython("x=2", d);
+        pyodide.runPython("y=2", d);
+        assert(() => d.get("x") === 2);
+        d.destroy();
+        """
+    )
+    dep_msg = "Passing a PyProxy as the second argument to runPython is deprecated and will be removed in v0.21. Use 'runPython(code, {globals : some_dict})' instead."
+    assert selenium.logs.count(dep_msg) == 1
+    selenium.run_js(
+        """
+        pyodide.runPython(`
+            import shutil
+            shutil.make_archive("blah", "zip")
+        `);
+        pyodide.unpackArchive(pyodide.FS.readFile("blah.zip"), "zip", "abc");
+        pyodide.unpackArchive(pyodide.FS.readFile("blah.zip"), "zip", "abc");
+        """
+    )
+    dep_msg = "Passing a string as the third argument to unpackArchive is deprecated and will be removed in v0.21. Instead use { extract_dir : 'some_path' }"
+    assert selenium.logs.count(dep_msg) == 1
 
 
 @run_in_pyodide
@@ -835,8 +862,10 @@ def test_js_stackframes(selenium):
     def normalize_tb(t):
         res = []
         for [file, name] in t:
-            if file.endswith(".js") or file.endswith(".html"):
+            if file.endswith((".js", ".html")):
                 file = file.rpartition("/")[-1]
+            if file.endswith(".py"):
+                file = "/".join(file.split("/")[-2:])
             if re.fullmatch(r"\:[0-9]*", file) or file == "evalmachine.<anonymous>":
                 file = "test.html"
             res.append([file, name])
@@ -849,14 +878,14 @@ def test_js_stackframes(selenium):
         ["test.html", "d2"],
         ["test.html", "d1"],
         ["pyodide.js", "runPython"],
-        [f"/lib/{PYVERSION}/site-packages/_pyodide/_base.py", "eval_code"],
-        [f"/lib/{PYVERSION}/site-packages/_pyodide/_base.py", "run"],
+        ["_pyodide/_base.py", "eval_code"],
+        ["_pyodide/_base.py", "run"],
         ["<exec>", "<module>"],
         ["<exec>", "c2"],
         ["<exec>", "c1"],
         ["test.html", "b"],
         ["pyodide.js", "pyimport"],
-        [f"/lib/{PYVERSION}/importlib/__init__.py", "import_module"],
+        ["importlib/__init__.py", "import_module"],
     ]
     assert normalize_tb(res[: len(frames)]) == frames
 

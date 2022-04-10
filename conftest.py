@@ -83,7 +83,7 @@ def built_packages() -> list[str]:
 
 
 def _package_is_built(package_name: str) -> bool:
-    return package_name in built_packages()
+    return package_name.lower() in built_packages()
 
 
 class JavascriptException(Exception):
@@ -179,8 +179,6 @@ class SeleniumWrapper:
             pyodide._api.importlib.invalidate_caches;
             pyodide._api.package_loader.unpack_buffer;
             pyodide._api.package_loader.get_dynlibs;
-            pyodide._api._util_module = pyodide.pyimport("pyodide._util");
-            pyodide._api._util_module.unpack_buffer_archive;
             pyodide.runPython("");
             """
         )
@@ -389,7 +387,8 @@ class NodeWrapper(SeleniumWrapper):
     def init_node(self):
         os.chdir("build")
         self.p = pexpect.spawn(
-            f"node --expose-gc ../tools/node_test_driver.js {self.base_url}", timeout=60
+            f"node --expose-gc --experimental-wasm-bigint ../tools/node_test_driver.js {self.base_url}",
+            timeout=60,
         )
         self.p.setecho(False)
         self.p.delaybeforesend = None

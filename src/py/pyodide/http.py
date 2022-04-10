@@ -1,6 +1,6 @@
 import json
 from io import StringIO
-from typing import Any, BinaryIO, TextIO, Union
+from typing import Any, BinaryIO, TextIO
 
 from ._core import JsProxy, to_js
 
@@ -10,7 +10,7 @@ except ImportError:
     pass
 
 from ._core import IN_BROWSER
-from ._util import unpack_buffer_archive
+from ._package_loader import unpack_buffer
 
 __all__ = [
     "open_url",
@@ -149,7 +149,7 @@ class FetchResponse:
         self._raise_if_failed()
         return (await self.buffer()).to_bytes()
 
-    async def _into_file(self, f: Union[TextIO, BinaryIO]):
+    async def _into_file(self, f: TextIO | BinaryIO):
         """Write the data into an empty file with no copy.
 
         Warning: should only be used when f is an empty file, otherwise it may
@@ -202,9 +202,7 @@ class FetchResponse:
         """
         buf = await self.buffer()
         filename = self._url.rsplit("/", -1)[-1]
-        unpack_buffer_archive(
-            buf, filename=filename, format=format, extract_dir=extract_dir
-        )
+        unpack_buffer(buf, filename=filename, format=format, extract_dir=extract_dir)
 
 
 async def pyfetch(url: str, **kwargs) -> FetchResponse:
