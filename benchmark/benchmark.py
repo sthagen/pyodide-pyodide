@@ -79,7 +79,7 @@ def parse_benchmark(filename):
     return "".join(lines)
 
 
-def get_benchmark_scripts(scripts_dir, repeat=11, number=5):
+def get_benchmark_scripts(scripts_dir, repeat=5, number=5):
     root = Path(__file__).resolve().parent / scripts_dir
     for filename in sorted(root.iterdir()):
         name = filename.stem
@@ -137,7 +137,7 @@ def parse_args(benchmarks):
     parser.add_argument(
         "-o",
         "--output",
-        default="build/benchmarks.json",
+        default="dist/benchmarks.json",
         help="path to the json file where benchmark results will be saved",
     )
     parser.add_argument(
