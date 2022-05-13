@@ -14,6 +14,8 @@ substitutions:
 
 ## Unreleased
 
+- {{ Fix }} Fix building on macOS {issue}`2360` {pr}`2554`
+
 - {{ Fix }} Fix a REPL error in printing high-dimensional lists.
   {pr}`2517`
 
@@ -56,6 +58,8 @@ substitutions:
   translated to negative Python ints.
   {pr}`2484`
 
+- {{ Fix }} Fix garbage collection of `once_callable` {pr}`2401`
+
 - {{ Enhancement }} `run_in_pyodide` now has support for pytest assertion
   rewriting and various other improvements.
   {pr}`2510`
@@ -72,6 +76,10 @@ substitutions:
   `dictConverter` argument.
   {pr}`2533`
 
+- {{ Enhancement }} Added Python wrappers `set_timeout`, `clear_timeout`, `set_interval`,
+  `clear_interval`, `add_event_listener` and `remove_event_listener` for the corresponding JavaScript functions.
+  {pr}`2456`
+
 ### micropip
 
 - {{ Fix }} micropip now correctly handles package names that include dashes
@@ -86,6 +94,10 @@ substitutions:
 
 - {{ Fix }} micropip now correctly compares packages with prerelease version
   {pr}`2532`
+
+- {{ Enhancement }} {func}`micropip.install` now accepts a `pre` parameter.
+  If set to `True`, micropip will include pre-release and development versions.
+  {pr}`2542`
 
 ### Packages
 
