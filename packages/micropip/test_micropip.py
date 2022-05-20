@@ -10,6 +10,33 @@ from pyodide_test_runner import run_in_pyodide, spawn_web_server
 
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
+from importlib.metadata import Distribution, PackageNotFoundError
+
+
+def _mock_importlib_version(name: str):
+    dists = _mock_importlib_distributions()
+    for dist in dists:
+        if dist.name == name:
+            return dist.version
+    raise PackageNotFoundError(name)
+
+
+def _mock_importlib_distributions():
+    from micropip._micropip import WHEEL_BASE
+
+    for p in WHEEL_BASE.glob("*.dist-info"):
+        yield Distribution.at(p)
+
+
+@pytest.fixture
+def mock_importlib(monkeypatch):
+    from micropip import _micropip
+
+    monkeypatch.setattr(_micropip, "importlib_version", _mock_importlib_version)
+    monkeypatch.setattr(
+        _micropip, "importlib_distributions", _mock_importlib_distributions
+    )
+
 
 def mock_get_pypi_json(pkg_map):
     """Returns mock function of `_get_pypi_json` which returns dummy JSON data of PyPI API.
@@ -83,15 +110,23 @@ def mock_fetch_bytes(pkg_name, metadata, version="1.0.0"):
     """
 
     async def _mock_fetch_bytes(url, kwargs):
+        from micropip._micropip import WheelInfo
+
+        wheel_info = WheelInfo.from_url(url)
         mock_metadata = metadata
         mock_wheel = "Wheel-Version: 1.0"
+        version = wheel_info.version
+        normalized_pkg_name = pkg_name.replace("-", "_")
 
         with io.BytesIO() as tmp:
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr(
-                    f"{pkg_name}-{version}.dist-info/METADATA", mock_metadata
+                    f"{normalized_pkg_name}-{version}.dist-info/METADATA",
+                    f"Name:{pkg_name}\nVersion:{version}\n{mock_metadata}",
                 )
-                archive.writestr(f"{pkg_name}-{version}.dist-info/WHEEL", mock_wheel)
+                archive.writestr(
+                    f"{normalized_pkg_name}-{version}.dist-info/WHEEL", mock_wheel
+                )
 
             tmp.seek(0)
 
@@ -138,10 +173,10 @@ def test_install_simple(selenium_standalone_micropip):
 
 def test_parse_wheel_url():
     pytest.importorskip("packaging")
-    from micropip import _micropip
+    from micropip._micropip import WheelInfo
 
     url = "https://a/snowballstemmer-2.0.0-py2.py3-none-any.whl"
-    wheel = _micropip._parse_wheel_url(url)
+    wheel = WheelInfo.from_url(url)
     assert wheel.name == "snowballstemmer"
     assert str(wheel.version) == "2.0.0"
     assert wheel.digests is None
@@ -155,10 +190,10 @@ def test_parse_wheel_url():
     msg = "not a valid wheel file name"
     with pytest.raises(ValueError, match=msg):
         url = "https://a/snowballstemmer-2.0.0-py2.whl"
-        wheel = _micropip._parse_wheel_url(url)
+        wheel = WheelInfo.from_url(url)
 
     url = "http://scikit_learn-0.22.2.post1-cp35-cp35m-macosx_10_9_intel.whl"
-    wheel = _micropip._parse_wheel_url(url)
+    wheel = WheelInfo.from_url(url)
     assert wheel.name == "scikit_learn"
     assert wheel.platform == "macosx_10_9_intel"
 
@@ -185,9 +220,22 @@ def test_install_custom_url(selenium_standalone_micropip, base_url):
         )
 
 
+def create_transaction(Transaction):
+    return Transaction(
+        wheels=[],
+        locked={},
+        keep_going=True,
+        deps=True,
+        pre=False,
+        pyodide_packages=[],
+        failed=[],
+        ctx={"extra": ""},
+        fetch_kwargs={},
+    )
+
+
 def test_add_requirement():
     pytest.importorskip("packaging")
-    from micropip import _micropip
     from micropip._micropip import Transaction
 
     with spawn_web_server(Path(__file__).parent / "test") as server:
@@ -195,18 +243,8 @@ def test_add_requirement():
         base_url = f"http://{server_hostname}:{server_port}/"
         url = base_url + "snowballstemmer-2.0.0-py2.py3-none-any.whl"
 
-        transaction = Transaction(
-            wheels=[],
-            locked={},
-            keep_going=True,
-            deps=True,
-            pre=False,
-            pyodide_packages=[],
-            failed=[],
-        )
-        asyncio.get_event_loop().run_until_complete(
-            _micropip.PACKAGE_MANAGER.add_requirement(url, {}, transaction, {})
-        )
+        transaction = create_transaction(Transaction)
+        asyncio.get_event_loop().run_until_complete(transaction.add_requirement(url))
 
     wheel = transaction.wheels[0]
     assert wheel.name == "snowballstemmer"
@@ -219,12 +257,14 @@ def test_add_requirement():
     assert wheel.url == url
 
 
-def test_add_requirement_marker():
+def test_add_requirement_marker(mock_importlib):
     pytest.importorskip("packaging")
-    from micropip import _micropip
+    from micropip._micropip import Transaction
 
-    transaction = asyncio.get_event_loop().run_until_complete(
-        _micropip.PACKAGE_MANAGER.gather_requirements(
+    transaction = create_transaction(Transaction)
+
+    asyncio.get_event_loop().run_until_complete(
+        transaction.gather_requirements(
             [
                 "werkzeug",
                 'contextvars ; python_version < "3.7"',
@@ -236,11 +276,6 @@ def test_add_requirement_marker():
                 "numpy ; extra == 'socketio'",
                 "python-socketio[client] ; extra == 'socketio'",
             ],
-            {"extra": ""},
-            False,
-            False,
-            False,
-            {},
         )
     )
     assert len(transaction.wheels) == 1
@@ -250,7 +285,7 @@ def test_last_version_from_pypi():
     pytest.importorskip("packaging")
     from packaging.requirements import Requirement
 
-    from micropip import _micropip
+    from micropip._micropip import find_wheel
 
     requirement = Requirement("dummy_module")
     versions = ["0.0.1", "0.15.5", "0.9.1"]
@@ -265,22 +300,20 @@ def test_last_version_from_pypi():
     metadata = {"releases": releases}
 
     # get version number from find_wheel
-    wheel = _micropip.PACKAGE_MANAGER.find_wheel(metadata, requirement)
+    wheel = find_wheel(metadata, requirement)
 
     assert str(wheel.version) == "0.15.5"
 
 
 def test_install_non_pure_python_wheel():
     pytest.importorskip("packaging")
-    from micropip import _micropip
+    from micropip._micropip import Transaction
 
     msg = "not a pure Python 3 wheel"
     with pytest.raises(ValueError, match=msg):
         url = "http://scikit_learn-0.22.2.post1-cp35-cp35m-macosx_10_9_intel.whl"
-        transaction = {"wheels": list[Any](), "locked": dict[str, Any]()}
-        asyncio.get_event_loop().run_until_complete(
-            _micropip.PACKAGE_MANAGER.add_requirement(url, {}, transaction, {})
-        )
+        transaction = create_transaction(Transaction)
+        asyncio.get_event_loop().run_until_complete(transaction.add_requirement(url))
 
 
 def test_install_different_version(selenium_standalone_micropip):
@@ -346,7 +379,7 @@ def test_install_keep_going(monkeypatch):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
-    dummy_pkg_name = "dummy"
+    dummy_pkg_name = "dummy1"
     _mock_get_pypi_json = mock_get_pypi_json(
         {dummy_pkg_name: {"name": f"{dummy_pkg_name}-1.0.0-py3-none-any.whl"}}
     )
@@ -365,11 +398,11 @@ def test_install_keep_going(monkeypatch):
         )
 
 
-def test_install_version_compare_prerelease(monkeypatch):
+def test_install_version_compare_prerelease(monkeypatch, mock_importlib):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
-    dummy_pkg_name = "dummy"
+    dummy_pkg_name = "dummy2"
     version_new = "3.2.1a1"
     version_old = "3.2.0"
 
@@ -410,11 +443,11 @@ def test_install_version_compare_prerelease(monkeypatch):
     assert installed_pkgs[dummy_pkg_name].version == version_new
 
 
-def test_install_no_deps(monkeypatch):
+def test_install_no_deps(monkeypatch, mock_importlib):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
-    dummy_pkg_name = "dummy"
+    dummy_pkg_name = "dummy3"
     dep_pkg_name = "dependency_dummy"
     _mock_get_pypi_json = mock_get_pypi_json(
         {
@@ -437,7 +470,7 @@ def test_install_no_deps(monkeypatch):
     assert dep_pkg_name not in _micropip._list()
 
 
-def test_install_pre(monkeypatch):
+def test_install_pre(monkeypatch, mock_importlib):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
@@ -509,11 +542,11 @@ def test_fetch_wheel_fail(monkeypatch):
         )
 
 
-def test_list_pypi_package(monkeypatch):
+def test_list_pypi_package(monkeypatch, mock_importlib):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
-    dummy_pkg_name = "dummy"
+    dummy_pkg_name = "dummy4"
     _mock_get_pypi_json = mock_get_pypi_json(
         {dummy_pkg_name: {"name": f"{dummy_pkg_name}-1.0.0-py3-none-any.whl"}}
     )
@@ -525,14 +558,15 @@ def test_list_pypi_package(monkeypatch):
     asyncio.get_event_loop().run_until_complete(_micropip.install(dummy_pkg_name))
 
     pkg_list = _micropip._list()
-    assert "dummy" in pkg_list and pkg_list["dummy"].source.lower() == "pypi"
+    assert dummy_pkg_name in pkg_list
+    assert pkg_list[dummy_pkg_name].source.lower() == "pypi"
 
 
-def test_list_wheel_package(monkeypatch):
+def test_list_wheel_package(monkeypatch, mock_importlib):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
-    dummy_pkg_name = "dummy"
+    dummy_pkg_name = "dummy5"
     dummy_url = f"https://dummy.com/{dummy_pkg_name}-1.0.0-py3-none-any.whl"
     _mock_fetch_bytes = mock_fetch_bytes(dummy_pkg_name, "UNKNOWN")
 
@@ -541,27 +575,26 @@ def test_list_wheel_package(monkeypatch):
     asyncio.get_event_loop().run_until_complete(_micropip.install(dummy_url))
 
     pkg_list = _micropip._list()
-    assert "dummy" in pkg_list and pkg_list["dummy"].source.lower() == dummy_url
+    assert dummy_pkg_name in pkg_list
+    assert pkg_list[dummy_pkg_name].source.lower() == dummy_url
 
 
-def test_list_wheel_name_mismatch(monkeypatch):
+def test_list_wheel_name_mismatch(monkeypatch, mock_importlib):
     pytest.importorskip("packaging")
     from micropip import _micropip
 
     dummy_pkg_name = "dummy-Dummy"
     normalized_pkg_name = dummy_pkg_name.replace("-", "_").lower()
     dummy_url = f"https://dummy.com/{normalized_pkg_name}-1.0.0-py3-none-any.whl"
-    _mock_fetch_bytes = mock_fetch_bytes(dummy_pkg_name, f"Name: {dummy_pkg_name}\n")
+    _mock_fetch_bytes = mock_fetch_bytes(dummy_pkg_name, "")
 
     monkeypatch.setattr(_micropip, "fetch_bytes", _mock_fetch_bytes)
 
     asyncio.get_event_loop().run_until_complete(_micropip.install(dummy_url))
 
     pkg_list = _micropip._list()
-    assert (
-        dummy_pkg_name in pkg_list
-        and pkg_list[dummy_pkg_name].source.lower() == dummy_url
-    )
+    assert dummy_pkg_name in pkg_list
+    assert pkg_list[dummy_pkg_name].source.lower() == dummy_url
 
 
 def test_list_pyodide_package(selenium_standalone_micropip):
@@ -581,7 +614,8 @@ def test_list_pyodide_package(selenium_standalone_micropip):
         await pyodide.runPythonAsync(`
             import micropip
             pkgs = micropip.list()
-            assert "regex" in pkgs and pkgs["regex"].source.lower() == "pyodide"
+            assert "regex" in pkgs
+            assert pkgs["regex"].source.lower() == "pyodide"
         `);
         """
     )
@@ -595,7 +629,8 @@ def test_list_loaded_from_js(selenium_standalone_micropip):
         await pyodide.runPythonAsync(`
             import micropip
             pkgs = micropip.list()
-            assert "regex" in pkgs and pkgs["regex"].source.lower() == "pyodide"
+            assert "regex" in pkgs
+            assert pkgs["regex"].source.lower() == "pyodide"
         `);
         """
     )
@@ -616,7 +651,7 @@ async def test_install_with_credentials():
 
     fetch_response_mock.string.side_effect = myfunc
 
-    @patch("micropip._micropip.pyfetch", return_value=fetch_response_mock)
+    @patch("micropip._compat_in_pyodide.pyfetch", return_value=fetch_response_mock)
     async def call_micropip_install(pyfetch_mock):
         try:
             await micropip.install("pyodide-micropip-test", credentials="include")
