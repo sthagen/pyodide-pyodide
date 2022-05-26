@@ -1,10 +1,10 @@
+import pytest
 from pyodide_test_runner import run_in_pyodide
 
 
-@run_in_pyodide(
-    packages=["pywavelets"], driver_timeout=30, xfail_browsers={"chrome": "xfail"}
-)
-def test_pywt():
+@pytest.mark.xfail_browsers(chrome="xfail")
+@run_in_pyodide(packages=["pywavelets"], driver_timeout=30)
+def test_pywt(selenium):
     import numpy as np
     import pywt
 
