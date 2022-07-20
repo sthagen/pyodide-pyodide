@@ -107,6 +107,9 @@ substitutions:
   empty container. Otherwise it returns `True`.
   {pr}`2803`
 
+- {{ Fix }} Fix `loadPyodide` errors for the Windows Node environment.
+  {pr}`2888`
+
 ### REPL
 
 - {{ Enhancement }} Add a spinner while the REPL is loading
@@ -209,7 +212,7 @@ substitutions:
   ruamel, msprime {pr}`2548`, gmpy2 {pr}`2665`, xgboost {pr}`2537`, galpy {pr}`2676`,
   shapely, geos {pr}`2725`, suitesparse, sparseqr {pr}`2685`, libtiff {pr}`2762`,
   pytest-benchmark {pr}`2799`, termcolor {pr}`2809`, sqlite3, libproj, pyproj, certifi {pr}`2555`,
-  rebound {pr}`2868`
+  rebound {pr}`2868`, pyclipper {pr}`2886`
 
 ### Miscellaneous
 
