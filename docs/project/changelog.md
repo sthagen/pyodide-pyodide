@@ -14,28 +14,16 @@ substitutions:
 
 ## Unreleased
 
-- {{ Enhancement }} Emscripten was updated to Version 3.1.18
-  {pr}`2958`, {pr}`2950`
-
-- New packages: pycryptodomex {pr}`2966`, pycryptodome {pr}`2965`
+- {{ Enhancement }} Emscripten was updated to Version 3.1.20
+  {pr}`2958`, {pr}`2950`, {pr}`3027`
 
 - {{ Enhancement }} Implemented `reverse`, `__reversed__`, `count`, `index`,
   `append`, and `pop` for `JsProxy` of Javascript arrays.
   {pr}`2970`
 
-- {{ Breaking }} Unvendored the sqlite3 module from the standard library.
-  Before `sqlite3` was included by default. Now it needs to be loaded with
-  {any}`pyodide.loadPackage` or {any}`micropip.install`.
-  {pr}`2946`
-
 - {{ Enhancement }} The releases are now called `pyodide-{version}.tar.gz`
   rather than `pyodide-build-{version}.tar.gz`
   {pr}`2996`
-
-- {{ Fix }} If a wheel path is passed to {any}`pyodide.loadPackage`, it will now
-  be resolved relative to `document.location` (in browser) or relative to the
-  current working directory (in Node) rather than relative to `indexURL`.
-  {pr}`3013`, {issue}`3011`
 
 - {{ Enhancement }} Added a new release file called
   `pyodide-core-{version}.tar.gz` intended for use in Node. It contains the
@@ -46,14 +34,92 @@ substitutions:
   used by Pyodide's event loop.
   {pr}`2997`
 
-- {{ Fix }} Fixed a bug in Emscripten that caused Pyodide to fail in Jest.
-  {pr}`3014`
+- {{ Enhancement }} `loadPyodide` has a new option called `args`. This list will
+  be passed as command line arguments to the Python interpreter at start up.
+  {pr}`3021`
+
+- {{ Enhancement }} The core test suite is now run in Safari {pr}`2578`.
+
+- {{ Fix }} It works again to use `loadPyodide` with a relative URL as
+  `indexURL` (this was a regression in v0.21.2).
+  {pr}`3077`
+
+- {{ Enhancement }} Pyodide now works with a content security policy that
+  doesn't include `unsafe-eval`. It is still necessary to include
+  `wasm-unsafe-eval` (and probably always will be). Since current Safari
+  versions have no support for `wasm-unsafe-eval`, it is necessary to include
+  `unsafe-eval` in order to work in Safari. This will likely be fixed in the
+  next Safari release: https://bugs.webkit.org/show_bug.cgi?id=235408
+  {pr}`3075`
+
+- {{ Fix }} Add `url` to list of pollyfilled packages for webpack compatibility.
+  {pr}`3080`
+
+### Build System / Package Loading
+
+- New packages: pycryptodomex {pr}`2966`, pycryptodome {pr}`2965`
+
+- {{ Breaking }} Unvendored the sqlite3 module from the standard library.
+  Before `sqlite3` was included by default. Now it needs to be loaded with
+  {any}`pyodide.loadPackage` or {any}`micropip.install`.
+  {pr}`2946`
+
+- {{ Breaking }} The Pyodide Python package is installed into `/lib/python3.10`
+  rather than `/lib/python3.10/site-packages`.
+  {pr}`3022`
+
+- {{ Fix }} Fix the incorrect package name `ruamel` to `ruamel.yaml`.
+  {pr}`3036`
+
+- {{ Update }} Upgraded SciPy to version 1.9.1.
+  {pr}`3043`
+
+- {{ Fix }} Packages are now loaded in a topologically sorted order regarding
+  their dependencies.
+  {pr}`3020`
+
+- {{ Breaking }} Loading the `soupsieve` package will not automatically load
+  `beautifulsoup4` together.
+  {pr}`3020`
+
+- {{ Breaking }} The matplotlib HTML5 backends are now available as part of the
+  [`matplotlib-pyodide`](https://github.com/pyodide/matplotlib-pyodide)
+  package. If you use the default backend from Pyodide, no changes are
+  necessary. However, if you previously specified the backend with
+  `matplotlib.use`, the URL is now different. See [package
+  readme](https://github.com/pyodide/matplotlib-pyodide) for more details.
+  {pr}`3061`
 
 ### Build System
 
 - {{ Enhancement }} Added `requirements/host` key to the `meta.yaml` spec to allow
   host dependencies that are required for building packages.
   {pr}`2132`
+
+- {{ Enhancement }} Added `package/top-level` key to the `meta.yaml` spec to
+  calculate top-level import names for the package. Previously `test/imports`
+  key was used for this purpose.
+  {pr}`3006`
+
+## Version 0.21.2
+
+- {{ Fix }} The standard library packages `ssl` and `lzma` can now be installed
+  with `pyodide.loadPackage("ssl")` or `micropip.install("ssl")` (previously
+  they had a leading underscore and it was only possible to load them with
+  `pyodide.loadPackage`).
+  {issue}`3003`
+
+- {{ Fix }} If a wheel path is passed to {any}`pyodide.loadPackage`, it will now
+  be resolved relative to `document.location` (in browser) or relative to the
+  current working directory (in Node) rather than relative to `indexURL`.
+  {pr}`3013`, {issue}`3011`
+
+- {{ Fix }} Fixed a bug in Emscripten that caused Pyodide to fail in Jest.
+  {pr}`3014`
+
+- {{ Fix }} It now works to pass a relative url to `indexURL`. Also, the calculated index URL
+  now works even if `node` is run with `--enable-source-maps`.
+  {pr}`3015`
 
 ## Version 0.21.1
 
