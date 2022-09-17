@@ -29,6 +29,7 @@ jobs:
           command: |
             mkdir test-results
             pip install pytest-pyodide
+            pip install -e ./pyodide-build
             npm install -g node-fetch@2
             pytest docs/sphinx_pyodide/tests --junitxml=test-results/junit.xml
       - store_test_results:
@@ -228,7 +229,8 @@ jobs:
       - run:
           name: create xbuild environment
           command: |
-            PYTHONPATH=pyodide-build python -m pyodide_build create_xbuildenv
+            pip install -e ./pyodide-build
+            python -m pyodide_build create_xbuildenv
 
       - run:
           name: Zip xbuild environment
@@ -264,6 +266,7 @@ jobs:
             mkdir test-results
             pip install pytest-pyodide
             pip install -r requirements.txt
+            pip install -e pyodide-build
             npm install -g node-fetch@2
             if [ -z "<< parameters.cache-dir >>" ]; then
               export CACHE_DIR=".test_cache/.pytest_cache_$(echo $RANDOM | md5sum | head -c 10)"
@@ -323,6 +326,7 @@ jobs:
             source activate pyodide
             mkdir test-results
             pip install pytest-pyodide
+            pip install -e ./pyodide-build
             if [ -z "<< parameters.cache-dir >>" ]; then
               export CACHE_DIR=".test_cache/.pytest_cache_$(echo $RANDOM | md5sum | head -c 10)"
             else
@@ -365,14 +369,51 @@ jobs:
             npm link ../../dist
             npm run test-types
             npm test
-      # - run:
-      #     name: check if webpack cli works well with load-pyodide.js
-      #     command: |
-      #       git clone https://github.com/pyodide/pyodide-webpack-example.git
-      #       cd pyodide-webpack-example
-      #       npm ci
-      #       cp ../src/js/*.js node_modules/pyodide/
-      #       npx webpack
+      - run:
+          name: check if Pyodide works with Webpack
+          command: |
+            git clone https://github.com/pyodide/pyodide-webpack-example.git
+            export DEV_PYODIDE_PATH=`realpath dist`
+            cd pyodide-webpack-example
+            git checkout 164054a9c6fbd2176f386b6552ed8d079c6bcc04
+            ./build.sh
+
+  test-cmdline-runner:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: test
+          command: |
+            set -x
+            export PYODIDE_ROOT=$(pwd)
+            echo $PYODIDE_ROOT
+            cd ~
+            mkdir test
+            cd test
+            git clone https://github.com/python-attrs/attrs --depth 1 --branch 22.1.0
+            git clone https://github.com/zopefoundation/zope.interface.git --depth 1 --branch 5.4.0
+            git clone https://github.com/nedbat/coveragepy.git --depth 1 --branch coverage-5.5
+
+            python3.10 -m venv .venv-host
+            source .venv-host/bin/activate
+            pip install $PYODIDE_ROOT/pyodide-build
+            pyodide venv .venv-pyodide
+            source .venv-pyodide/bin/activate
+
+            cd zope.interface
+            pyodide build
+            pip install dist/*.whl
+            cd ../coveragepy/
+            pyodide build
+            pip install dist/*.whl
+            cd ../attrs
+            pyodide build
+            WHEEL_NAME=$(echo dist/*.whl)
+            pip install $WHEEL_NAME[tests]
+            python -m pytest -k 'not mypy'
 
   benchmark:
     <<: *defaults
@@ -414,13 +455,6 @@ jobs:
             python3 -m pip install awscli
 
       - run:
-          name: Remove source maps
-          command: |
-            # Source maps mess up calculateIndexURL if node is used with
-            # --enable-source-maps and are not otherwise needed. We'll keep them
-            # in the debug version.
-            rm dist/*.map
-      - run:
           name: Deploy Github Releases
           command: |
             mkdir -p /tmp/ghr/dist
@@ -444,12 +478,13 @@ jobs:
           name: Deploy to PyPI
           command: |
             # Ask github actions to deploy for us
+            export PAYLOAD={"ref":"${CIRCLE_TAG}","inputs":{}}
             curl \
               -X POST \
               -H "Accept: application/vnd.github.v3+json" \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/dispatches \
-              -d '{"event_type":"deploy-release","client_payload":{}}'
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/dispatches/deploy-release \
+              -d "$PAYLOAD"
 
       - run:
           name: Set PYODIDE_BASE_URL
@@ -721,6 +756,32 @@ workflows:
             tags:
               only: /.*/
 
+      - test-main-macos:
+          name: test-packages-safari-no-numpy-dependents
+          test-params: --runtime=safari-no-host -k "not webworker" packages/*/test*.py
+          cache-dir: .pytest_cache_safari
+          requires:
+            - build-packages-no-numpy-dependents
+          filters:
+            tags:
+              only: /.*/
+          post-steps:
+            - persist_to_workspace:
+                root: .
+                paths:
+                  - ./.test_cache
+
+      - test-main-macos:
+          name: test-packages-safari
+          test-params: --runtime=safari-no-host -k "not webworker" packages/*/test*.py --skip-passed
+          cache-dir: .pytest_cache_safari
+          requires:
+            - test-packages-safari-no-numpy-dependents
+            - build-packages
+          filters:
+            tags:
+              only: /.*/
+
       - test-js:
           requires:
             - build-core
@@ -743,6 +804,13 @@ workflows:
               only: /.*/
 
       - create-xbuild-env:
+          requires:
+            - build-packages
+          filters:
+            tags:
+              only: /.*/
+
+      - test-cmdline-runner:
           requires:
             - build-packages
           filters:

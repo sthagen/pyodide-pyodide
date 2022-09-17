@@ -68,11 +68,6 @@ are not available online in the required format.
 
 If a path is specified, any provided checksums are ignored.
 
-### `source/md5`
-
-The MD5 checksum of the tarball. It is recommended to use SHA256 instead of MD5.
-At most one checksum entry should be provided per package.
-
 ### `source/sha256`
 
 The SHA256 checksum of the tarball. It is recommended to use SHA256 instead of MD5.
@@ -159,6 +154,14 @@ Python package, the script section will be run before the build system runs
 `setup.py`. This script is run by `bash` in the directory where the tarball was
 extracted.
 
+There are special environment variables defined:
+
+- `$PKGDIR`: The directory in which the `meta.yaml` file resides.
+- `$PKG_VESRION`: The version of the package
+- `$PKG_BUILD_DIR`: The directory where the tarball was extracted.
+
+(These keys are not in the Conda spec).
+
 ### `build/cross-script`
 
 This script will run _after_ `build/script`. The difference is that it runs with
@@ -170,14 +173,13 @@ is the source directory.
 
 ### `build/post`
 
-Shell commands to run after building the library. These are run with `bash`, and
-there are two special environment variables defined:
-
-- `$SITEPACKAGES`: The `site-packages` directory into which the package has been
-  installed.
-- `$PKGDIR`: The directory in which the `meta.yaml` file resides.
-
-(This key is not in the Conda spec).
+Shell commands to run after building the library. This script is run by `bash`
+in the directory where `meta.yaml` file resides. The `${PKG_BUILD_DIR}/dist`
+will contain the built wheel unpacked with `python -m wheel unpack`
+so it's possible to manually add, delete, change, move files etc.
+See the [setuptools meta.yaml](https://github.com/pyodide/pyodide/
+blob/main/packages/setuptools/meta.yaml)
+for an example of the usage of this key.
 
 ### `build/unvendor-tests`
 

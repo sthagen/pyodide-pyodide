@@ -4,16 +4,18 @@ import os
 import re
 import subprocess
 import sys
+import textwrap
 import zipfile
 from collections import deque
 from collections.abc import Generator, Iterable, Iterator, Mapping
 from pathlib import Path
+from typing import NoReturn
 
 import tomli
 from packaging.tags import Tag, compatible_tags, cpython_tags
 from packaging.utils import parse_wheel_filename
 
-from .io import parse_package_config
+from .io import MetaConfig
 
 
 def emscripten_version() -> str:
@@ -40,7 +42,7 @@ def check_emscripten_version() -> None:
                 installed_version = x
                 break
     except Exception:
-        raise RuntimeError("Failed to determine Emscripten version.")
+        raise RuntimeError("Failed to determine Emscripten version.") from None
     if installed_version is None:
         raise RuntimeError("Failed to determine Emscripten version.")
     if installed_version != needed_version:
@@ -277,8 +279,8 @@ def search_pyodide_root(curdir: str | Path, *, max_depth: int = 5) -> Path:
         try:
             with pyproject_file.open("rb") as f:
                 configs = tomli.load(f)
-        except tomli.TOMLDecodeError:
-            raise ValueError(f"Could not parse {pyproject_file}.")
+        except tomli.TOMLDecodeError as e:
+            raise ValueError(f"Could not parse {pyproject_file}.") from e
 
         if "tool" in configs and "pyodide" in configs["tool"]:
             return base
@@ -334,9 +336,9 @@ def get_unisolated_packages() -> list[str]:
     else:
         unisolated_packages = []
         for pkg in (PYODIDE_ROOT / "packages").glob("**/meta.yaml"):
-            config = parse_package_config(pkg, check=False)
-            if config.get("build", {}).get("cross-build-env", False):
-                unisolated_packages.append(config["package"]["name"])
+            config = MetaConfig.from_yaml(pkg)
+            if config.build.cross_build_env:
+                unisolated_packages.append(config.package.name)
     os.environ["UNISOLATED_PACKAGES"] = json.dumps(unisolated_packages)
     return unisolated_packages
 
@@ -351,3 +353,18 @@ def replace_env(build_env: Mapping[str, str]) -> Generator[None, None, None]:
     finally:
         os.environ.clear()
         os.environ.update(old_environ)
+
+
+def exit_with_stdio(result: subprocess.CompletedProcess[str]) -> NoReturn:
+    if result.stdout:
+        print("  stdout:")
+        print(textwrap.indent(result.stdout, "    "))
+    if result.stderr:
+        print("  stderr:")
+        print(textwrap.indent(result.stderr, "    "))
+    raise SystemExit(result.returncode)
+
+
+def in_xbuildenv() -> bool:
+    pyodide_root = get_pyodide_root()
+    return pyodide_root.name == "pyodide-root"
