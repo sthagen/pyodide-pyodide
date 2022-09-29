@@ -134,8 +134,6 @@ function finalizeBootstrap(API: any, config: ConfigType) {
   importhook.register_js_finder();
   importhook.register_js_module("js", config.jsglobals);
 
-  importhook.register_unvendored_stdlib_finder();
-
   let pyodide = API.makePublicAPI();
   importhook.register_js_module("pyodide_js", pyodide);
 
@@ -316,8 +314,14 @@ export async function loadPyodide(
   // locateFile tells Emscripten where to find the data files that initialize
   // the file system.
   Module.locateFile = (path: string) => config.indexURL + path;
-  const scriptSrc = `${config.indexURL}pyodide.asm.js`;
-  await loadScript(scriptSrc);
+
+  // If the pyodide.asm.js script has been imported, we can skip the dynamic import
+  // Users can then do a static import of the script in environments where
+  // dynamic importing is not allowed or not desirable, like module-type service workers
+  if (typeof _createPyodideModule !== "function") {
+    const scriptSrc = `${config.indexURL}pyodide.asm.js`;
+    await loadScript(scriptSrc);
+  }
 
   // _createPyodideModule is specified in the Makefile by the linker flag:
   // `-s EXPORT_NAME="'_createPyodideModule'"`
@@ -358,6 +362,11 @@ If you updated the Pyodide version, make sure you also updated the 'indexURL' pa
     API.setCdnUrl(`https://cdn.jsdelivr.net/pyodide/v${pyodide.version}/full/`);
   }
   await API.packageIndexReady;
+
+  let importhook = API._pyodide._importhook;
+  importhook.register_unvendored_stdlib_finder();
+  importhook.register_repodata_packages_finder(API.repodata_packages);
+
   if (API.repodata_info.version !== version) {
     throw new Error("Lock file version doesn't match Pyodide version");
   }
