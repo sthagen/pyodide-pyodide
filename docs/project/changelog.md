@@ -30,6 +30,11 @@ substitutions:
 - {{ Enhancement }} Emscripten was updated to Version 3.1.21
   {pr}`2958`, {pr}`2950`, {pr}`3027`, {pr}`3107`
 
+- {{ Enhancement }} Added a new API {any}`pyodide.mountNativeFS`
+  which mounts [FileSystemDirectoryHandle](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemDirectoryHandle)
+  into the Pyodide file system.
+  {pr}`2987`
+
 - {{ Enhancement }} Implemented `reverse`, `__reversed__`, `count`, `index`,
   `append`, and `pop` for `JsProxy` of Javascript arrays.
   {pr}`2970`
@@ -68,6 +73,9 @@ substitutions:
   the method is called, `this` will be a `PyProxy` pointing to the Python object
   the method is called on.
   {pr}`3130`
+
+- {{ Fix }} Shared libraries with version suffix are now handled correctly.
+  {pr}`3154`
 
 ### Build System / Package Loading
 
