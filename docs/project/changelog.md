@@ -74,13 +74,26 @@ substitutions:
   the method is called on.
   {pr}`3130`
 
+- {{ Breaking }} The messageCallback and errorCallback argument to
+  {any}`loadPackage <pyodide.loadPackage>` and
+  {any}`loadPackagesFromImports <pyodide.loadPackagesFromImports>`
+  is now passed as named arguments.
+  The old usage still works with a deprecation warning.
+  {pr}`3149`
+
+- {{ Enhancement }} {any}`loadPackage <pyodide.loadPackage>` and
+  {any}`loadPackagesFromImports <pyodide.loadPackagesFromImports>` now accepts
+  a new option `checkIntegrity`. If set to False, integrity check for Python Packages
+  will be disabled.
+
 - {{ Fix }} Shared libraries with version suffix are now handled correctly.
   {pr}`3154`
 
 ### Build System / Package Loading
 
 - New packages: pycryptodomex {pr}`2966`, pycryptodome {pr}`2965`,
-  coverage-py {pr}`3053`, bcrypt {pr}`3125`, lightgbm {pr}`3138`
+  coverage-py {pr}`3053`, bcrypt {pr}`3125`, lightgbm {pr}`3138`,
+  pyheif, pillow_heif, libheif, libde265 {pr}`3161`
 
 - {{ Breaking }} Unvendored the sqlite3 module from the standard library.
   Before `sqlite3` was included by default. Now it needs to be loaded with
@@ -150,6 +163,9 @@ substitutions:
   calculate top-level import names for the package. Previously `test/imports`
   key was used for this purpose.
   {pr}`3006`
+
+- {{ Fix }} Fixed a bug that `backend-flags` propagated to dependencies.
+  {pr}`3153`
 
 ## Version 0.21.3
 
