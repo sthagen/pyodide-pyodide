@@ -28,8 +28,9 @@ substitutions:
   module-type service workers.
   {pr}`3070`
 
-- {{ Enhancement }} Emscripten was updated to Version 3.1.24
-  {pr}`2958`, {pr}`2950`, {pr}`3027`, {pr}`3107`, {pr}`3148`, {pr}`3236`
+- {{ Enhancement }} Emscripten was updated to Version 3.1.26
+  {pr}`2958`, {pr}`2950`, {pr}`3027`, {pr}`3107`, {pr}`3148`, {pr}`3236`,
+  {pr}`3239`, {pr}`3280`
 
 - {{ Enhancement }} Added a new API {any}`pyodide.mountNativeFS`
   which mounts [FileSystemDirectoryHandle](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemDirectoryHandle)
@@ -39,6 +40,11 @@ substitutions:
 - {{ Enhancement }} Implemented `reverse`, `__reversed__`, `count`, `index`,
   `append`, and `pop` for `JsProxy` of Javascript arrays.
   {pr}`2970`
+
+- {{ Enhancement }} Implemented methods `keys`, `items`, `values`, `get`, `pop`,
+  `setdefault`, `popitem`, `update`, and `clear` for `JsProxy` of map-like
+  objects.
+  {pr}`3275`
 
 - {{ Enhancement }} The releases are now called `pyodide-{version}.tar.gz`
   rather than `pyodide-build-{version}.tar.gz`
@@ -81,6 +87,18 @@ substitutions:
   the method is called on.
   {pr}`3130`
 
+- {{ Enhancement }} A `JsProxy` now has an `as_object_map` method. This will treat
+  the object as a mapping over its `ownKeys` so for instance:
+  `run_js("({a:2, b:3})").as_object_map()["a"]` will return 2.
+  {pr}`3273`
+
+- {{ Enhancement }} Split up the `JsProxy` documentation class into several
+  classes, e.g., {any}`JsBuffer`, {any}`JsPromise`, etc. Implemented
+  `issubclass` and `isinstance` on the various synthetic and real `JsProxy`
+  classes so that they behave the way one might naively expect them to (or
+  at least closer to that than it was before).
+  {pr}`3277`
+
 - {{ Breaking }} The messageCallback and errorCallback argument to
   {any}`loadPackage <pyodide.loadPackage>` and
   {any}`loadPackagesFromImports <pyodide.loadPackagesFromImports>`
@@ -106,15 +124,36 @@ substitutions:
   `pyodide-build mkpkg` will be replaced by `pyodide sekeleton pypi`.
   {pr}`3175`
 
+- Added a new CLI command `pyodide build-recipes` which build packages from recipe folder.
+  It replaces `pyodide-build buildall`.
+  {pr}`3196`
+
+- Added subcommands for `pyodide build` which builds packages from various sources.
+  | command | result |
+  |-------------|-------|
+  | `pyodide build pypi` | build or fetch a single package from pypi |
+  | `pyodide build source` | build the current source folder (same as pyodide build) |
+  | `pyodide build url` | build or fetch a package from a url either tgz, tar.gz zip or wheel |
+  {pr}`3196`
+
 - {{ Fix }} Fixed bug in `split` argument of {any}`repr_shorten`. Added {any}`shorten` function.
   {pr}`3178`
 
+- {{ Fix }} Pyodide now loads correctly with `-OO` option.
+
 - Add Gitpod configuration to the repository.
-  {pr} `3201`
+  {pr}`3201`
+
+- {{ Enhancement }} Added a type field to `PythonError`
+  {pr}`3289`
+
+- {{ Enhancement }} It is now possible to use aynchronous Python generators from
+  JavaScript.
+  {pr}`3290`
 
 ### Build System / Package Loading
 
-- New packages: pycryptodomex {pr}`2966`, pycryptodome {pr}`2965`,
+- New packages: pycryptodome {pr}`2965`,
   coverage-py {pr}`3053`, bcrypt {pr}`3125`, lightgbm {pr}`3138`,
   pyheif, pillow_heif, libheif, libde265 {pr}`3161`, wordcloud {pr}`3173`,
   gdal, fiona, geopandas {pr}`3213`,
@@ -193,12 +232,24 @@ substitutions:
   which vendors shared libraries into the wheel after building.
   {pr}`3234`
 
+- {{ Enhancement }} Added `build/type` key to the `meta.yaml` spec
+  which specifies the type of the package.
+  {pr}`3238`
+
+- {{ Breaking }} `build/library` and `build/sharedlibrary` key in the `meta.yaml` spec
+  are removed. Use `build/type` instead.
+  {pr}`3238`
+
 - {{ Fix }} Fixed a bug that `backend-flags` propagated to dependencies.
   {pr}`3153`
 
 - {{ Fix }} Fixed a bug that shared libraries are not copied into distribution
   directory when it is already built.
   {pr}`3212`
+
+### Packages
+
+- {{ Update }} Upgraded packages: numpy (1.23.5), {pr}`3284`
 
 ## Version 0.21.3
 
