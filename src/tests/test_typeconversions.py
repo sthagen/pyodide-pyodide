@@ -143,9 +143,8 @@ def test_number_conversions(selenium_module_scope, n):
 
     from pyodide.code import run_js
 
-    run_js("(s) => self.x_js = eval(s)")(json.dumps(n))
+    x_js = run_js("(s) => self.x_js = eval(s)")(json.dumps(n))
     run_js("(x_py) => Number(x_py) === x_js")(n)
-    from js import x_js
 
     if type(x_js) is float:
         assert x_js == float(n)
@@ -300,7 +299,7 @@ def test_big_int_conversions3(selenium_module_scope, n, exp):
         from pyodide.code import run_js
 
         x_py = json.loads(s)
-        run_js(
+        x_js = run_js(
             f"""
             self.x_js = eval('{s}n'); // JSON.parse apparently doesn't work
             """
@@ -311,7 +310,6 @@ def test_big_int_conversions3(selenium_module_scope, n, exp):
             """
         )(x_py)
         assert x1 == x2
-        from js import x_js
 
         check = run_js(
             """
@@ -343,7 +341,7 @@ def test_hyp_py2js2py(selenium, obj):
 
     try:
         run_js('self.obj2 = pyodide.globals.get("obj"); 0;')
-        from js import obj2
+        from js import obj2  # type:ignore[attr-defined]
 
         assert obj2 == obj
         run_js(
@@ -1523,17 +1521,6 @@ def test_buffer_format_string(selenium):
         [array_name, is_big_endian] = process_fmt_string(fmt)
         assert is_big_endian == expected_is_big_endian
         assert array_name == expected_array_name
-
-
-@run_in_pyodide
-def test_object_with_null_constructor(selenium):
-    from unittest import TestCase
-
-    from pyodide.code import run_js
-
-    o = run_js("Object.create(null)")
-    with TestCase().assertRaises(TypeError):
-        repr(o)
 
 
 def test_dict_converter_cache(selenium):

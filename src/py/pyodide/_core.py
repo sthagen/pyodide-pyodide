@@ -27,12 +27,32 @@ else:
         to_js,
     )
 
-from _pyodide._core_docs import JsArray, JsBuffer, JsDoubleProxy, JsPromise, JsProxy
+from _pyodide._core_docs import (
+    JsArray,
+    JsAsyncGenerator,
+    JsAsyncIterable,
+    JsBuffer,
+    JsDoubleProxy,
+    JsFetchResponse,
+    JsGenerator,
+    JsIterable,
+    JsIterator,
+    JsMap,
+    JsMutableMap,
+    JsPromise,
+    JsProxy,
+    JsTypedArray,
+)
 
 __all__ = [
     "JsProxy",
     "JsDoubleProxy",
     "JsArray",
+    "JsGenerator",
+    "JsAsyncGenerator",
+    "JsIterable",
+    "JsAsyncIterable",
+    "JsIterator",
     "JsException",
     "create_proxy",
     "create_once_callable",
@@ -41,5 +61,9 @@ __all__ = [
     "destroy_proxies",
     "JsPromise",
     "JsBuffer",
+    "JsTypedArray",
     "JsArray",
+    "JsFetchResponse",
+    "JsMap",
+    "JsMutableMap",
 ]
