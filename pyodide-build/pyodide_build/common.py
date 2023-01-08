@@ -9,6 +9,7 @@ import textwrap
 import zipfile
 from collections import deque
 from collections.abc import Generator, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import NoReturn
 
@@ -47,11 +48,8 @@ BUILD_VARS: set[str] = {
     "CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_LINKER",
     "CARGO_HOME",
     "RUSTFLAGS",
-    "PYO3_CONFIG_FILE",
-    "PYODIDE_CMAKE_TOOLCHAIN_FILE",
     "PYODIDE_EMSCRIPTEN_VERSION",
     "PLATFORM_TRIPLET",
-    "TOOLSDIR",
     "SYSCONFIGDATA_DIR",
 }
 
@@ -107,6 +105,8 @@ def pyodide_tags() -> Iterator[Tag]:
     python_version = (int(PYMAJOR), int(PYMINOR))
     yield from cpython_tags(platforms=[PLATFORM], python_version=python_version)
     yield from compatible_tags(platforms=[PLATFORM], python_version=python_version)
+    # Following line can be removed once packaging 22.0 is released and we update to it.
+    yield Tag(interpreter=f"cp{PYMAJOR}{PYMINOR}", abi="none", platform="any")
 
 
 def find_matching_wheels(wheel_paths: Iterable[Path]) -> Iterator[Path]:
@@ -261,7 +261,6 @@ def get_make_flag(name: str) -> str:
         SIDE_MODULE_LDFLAGS
         SIDE_MODULE_CFLAGS
         SIDE_MODULE_CXXFLAGS
-        TOOLSDIR
     """
     return get_make_environment_vars()[name]
 
@@ -418,3 +417,13 @@ def in_xbuildenv() -> bool:
 
 def find_missing_executables(executables: list[str]) -> list[str]:
     return list(filter(lambda exe: shutil.which(exe) is None, executables))
+
+
+@contextmanager
+def chdir(new_dir: Path) -> Generator[None, None, None]:
+    orig_dir = Path.cwd()
+    try:
+        os.chdir(new_dir)
+        yield
+    finally:
+        os.chdir(orig_dir)

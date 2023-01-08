@@ -75,7 +75,6 @@ def test_get_make_environment_vars():
     assert "SIDE_MODULE_LDFLAGS" in vars
     assert "SIDE_MODULE_CFLAGS" in vars
     assert "SIDE_MODULE_CXXFLAGS" in vars
-    assert "TOOLSDIR" in vars
 
 
 def test_wheel_paths():
@@ -111,6 +110,7 @@ def test_wheel_paths():
         f"py2.py3-none-{PLATFORM}",
         "py3-none-any",
         "py2.py3-none-any",
+        f"{current_version}-none-any",
     ]
 
 
