@@ -1,4 +1,3 @@
-import argparse
 import hashlib
 import zipfile
 from pathlib import Path
@@ -7,6 +6,7 @@ from typing import Any
 import pytest
 
 from pyodide_build import buildall
+from pyodide_build.pywasmcross import BuildArgs
 
 RECIPE_DIR = Path(__file__).parent / "_test_recipes"
 
@@ -80,9 +80,14 @@ def test_generate_repodata(tmp_path):
         "file_name": "pkg_1.whl",
         "depends": ["pkg_1_1", "pkg_3", "libtest_shared"],
         "imports": ["pkg_1"],
+        "package_type": "package",
         "install_dir": "site",
         "sha256": hashes["pkg_1"],
     }
+
+    assert (
+        package_data["packages"]["libtest_shared"]["package_type"] == "shared_library"
+    )
 
     sharedlib_imports = package_data["packages"]["libtest_shared"]["imports"]
     assert not sharedlib_imports, (
@@ -102,9 +107,7 @@ def test_build_dependencies(n_jobs, monkeypatch):
 
     pkg_map = buildall.generate_dependency_graph(RECIPE_DIR, {"pkg_1", "pkg_2"})
 
-    buildall.build_from_graph(
-        pkg_map, argparse.Namespace(n_jobs=n_jobs, force_rebuild=True)
-    )
+    buildall.build_from_graph(pkg_map, BuildArgs(), n_jobs=n_jobs, force_rebuild=True)
 
     assert set(build_list) == {
         "pkg_1",
@@ -133,7 +136,7 @@ def test_build_error(n_jobs, monkeypatch):
 
     with pytest.raises(ValueError, match="Failed build"):
         buildall.build_from_graph(
-            pkg_map, argparse.Namespace(n_jobs=n_jobs, force_rebuild=True)
+            pkg_map, BuildArgs(), n_jobs=n_jobs, force_rebuild=True
         )
 
 
