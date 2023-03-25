@@ -15,6 +15,11 @@ myst:
 
 ## Unreleased
 
+- {{ Enhancement }} `as_object_map` now accepts a keyword argument `hereditary`.
+  If set to `True` and indexing the object returns a plain-old-object, then the
+  return value will be automatically mapped in `as_object_map` as well.
+  {pr}`3638`
+
 - {{ Enhancement }} Python does not allow reserved words to be used as attributes.
   For instance, `Array.from` is a `SyntaxError`. (JavaScript has a more robust
   parser which can handle this.) To handle this, if an attribute to a `JsProxy`
@@ -110,6 +115,20 @@ myst:
   you will need to remove it.
   {pr}`3621`
 
+- {{ Enhancement }} Added `stdLibURL` parameter to `loadPyodide` allowing to customize
+  the URL from which the Python standard library is loaded.
+  {pr}`3670`
+
+- {{ Fix }} Improves the compression of wheel files with the JsDelivr CDN. For
+  browsers that support the Brotli compression (most modern ones) this should
+  result in a size reduction of 20-30%. Also most many `pyodide` CLI
+  sub-commands now support `--compression-level` as an optional parameter.
+  {pr}`3655`
+
+- {{ Breaking }} Removed deprecated CLI entrypoints `pyodide_build buildall` which is
+  replaced by `pyodide build-recipes`, and `pyodide-build mkpkg` which is
+  replaced by `pyodide skeleton pypi` {pr}`3668`
+
 ### Build System
 
 - {{ Enhancement}} Add `--build-dependencies` to pyodide build command
@@ -141,6 +160,8 @@ myst:
   CPU cores in the system and uses them for parallel builds.
   {pr}`3559` {pr}`3598`
 
+- {{ Enhancement }} `pyodide build-recipes` now works out-of-tree.
+
 - {{ Fix }} Fixed pip install error when installing cross build environment.
   {pr}`3562`
 
@@ -168,7 +189,8 @@ myst:
 
 ### Packages
 
-- New packages: fastparquet {pr}`3590`, cramjam {pr}`3590`.
+- New packages: fastparquet {pr}`3590`, cramjam {pr}`3590`, pynacl {pr}`3500`,
+  mypy {pr}`3504`, multidict {pr}`3581`
 
 - Upgraded packages: galpy (1.8.2) {pr}`3630`, scikit-learn (1.2.2) {pr}`3654`
 
