@@ -13,6 +13,24 @@ myst:
 
 # Change Log
 
+## Unreleased
+
+### Deployment
+
+- {{ Fix }} Export `python_stdlib.zip` in `package.json`.
+  {pr}`3723`
+
+### CLI
+
+- {{ Fix }} Fix `pyodide py-compile` not to ignore the `--compression-level` option when applied on
+  a single file.
+  {pr}`3727`
+
+### Packages
+
+- New packages: sourmash {pr}`3635`, screed {pr}`3635`, bitstring {pr}`3635`,
+  deprecation {pr}`3635`, cachetools {pr}`3635`.
+
 ## Version 0.23.0
 
 _March 30, 2023_
