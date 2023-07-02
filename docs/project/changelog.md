@@ -15,6 +15,12 @@ myst:
 
 ## Unreleased
 
+- {{ Fix }} Pin `pydantic` to `<2`.
+  {pr}`3971`
+
+- {{ Enhancement }} Allow customizing installation location for packages
+  {pr}`3967`
+
 - {{ Enhancement }} ABI Break: Updated Emscripten to version 3.1.39
   {pr}`3665`, {pr}`3659`, {pr}`3822`, {pr}`3889`, {pr}`3890`
 
@@ -70,7 +76,7 @@ myst:
 - New packages: sourmash {pr}`3635`, screed {pr}`3635`, bitstring {pr}`3635`,
   deprecation {pr}`3635`, cachetools {pr}`3635`, xyzservices {pr}`3786`,
   simplejson {pr}`3801`, protobuf {pr}`3813`, peewee {pr}`3897`,
-  Cartopy {pr}`3909`, pyshp {pr}`3909`.
+  Cartopy {pr}`3909`, pyshp {pr}`3909`, netCDF4 {pr}`3910`.
 - Upgraded libmpfr to 4.2.0 {pr}`3756`.
 - Upgraded scipy to 1.10.1 {pr}`3794`
 - Upgraded scikit-image to 0.21 {pr}`3874`
