@@ -50,6 +50,10 @@ myst:
   `pyodide-lock.json`
   {pr}`3824`
 
+- {{ Breaking }} Changed the FetchResponse body getter methods to no longer
+  throw an OSError exception for 400 and above response status codes
+  {pr}`3986`
+
 ### Packages
 
 - OpenBLAS has been added and scipy now uses OpenBLAS rather than CLAPACK
@@ -57,9 +61,9 @@ myst:
 - New packages: sourmash {pr}`3635`, screed {pr}`3635`, bitstring {pr}`3635`,
   deprecation {pr}`3635`, cachetools {pr}`3635`, xyzservices {pr}`3786`,
   simplejson {pr}`3801`, protobuf {pr}`3813`, peewee {pr}`3897`,
-  Cartopy {pr}`3909`, pyshp {pr}`3909`, netCDF4 {pr}`3910`.
+  Cartopy {pr}`3909`, pyshp {pr}`3909`, netCDF4 {pr}`3910`, igraph {pr}`3991`.
 - Upgraded libmpfr to 4.2.0 {pr}`3756`.
-- Upgraded scipy to 1.10.1 {pr}`3794`
+- Upgraded scipy to 1.11.1 {pr}`3794`, {pr}`3996`
 - Upgraded scikit-image to 0.21 {pr}`3874`
 - Upgraded scikit-learn to 1.3.0 {pr}`3976`
 - Upgraded pyodide-http to 0.2.1
