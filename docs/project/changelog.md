@@ -15,6 +15,12 @@ myst:
 
 ## Unreleased
 
+- {{ Enhancement }} Add examples for `pyodide.runPython`.
+  {pr}`4011`
+
+- {{ Enhancement }} Make it possible to use the @example JSDoc directive.
+  {pr}`4009`
+
 - {{ Enhancement }} ABI Break: Updated Emscripten to version 3.1.39
   {pr}`3665`, {pr}`3659`, {pr}`3822`, {pr}`3889`, {pr}`3890`
 
@@ -67,6 +73,13 @@ myst:
 - Upgraded scikit-image to 0.21 {pr}`3874`
 - Upgraded scikit-learn to 1.3.0 {pr}`3976`
 - Upgraded pyodide-http to 0.2.1
+
+### CLI
+
+- {{ Enhancement }} `pyodide build-recipes` now accepts a `--metadata-files`
+  option to install `*.whl.metadata` files as specified in
+  [PEP 658](https://peps.python.org/pep-0658/).
+  {pr}`3981`
 
 ## Version 0.23.4
 
