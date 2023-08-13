@@ -15,14 +15,28 @@ myst:
 
 ## Unreleased
 
-- {{ Enhancement }} Add examples for `pyodide.runPython`.
-  {pr}`4011`
+- {{ Enhancement }} For performance reasons, don't render extra information in
+  PyProxy destroyed message by default. By using `pyodide.setDebug(true)`, you
+  can opt into worse performance and better error messages.
+  {pr}`4027`
+
+- {{ Fix }} Fixed adding getters/setters to a `PyProxy` with
+  `Object.defineProperty` and improved compliance with JavaScript rules around
+  Proxy traps.
+  {pr}`4033`
+
+- {{ Enhancement }} Adds `check_wasm_magic_number` function to validate `.so`
+  files for WebAssembly (WASM) compatibility.
+  {pr}`4018`
+
+- {{ Enhancement }} Add an example for `loadPyodide` and `pyodide.runPython
+{pr}`4012`, {pr}`4011`
 
 - {{ Enhancement }} Make it possible to use the @example JSDoc directive.
   {pr}`4009`
 
-- {{ Enhancement }} ABI Break: Updated Emscripten to version 3.1.39
-  {pr}`3665`, {pr}`3659`, {pr}`3822`, {pr}`3889`, {pr}`3890`
+- {{ Enhancement }} ABI Break: Updated Emscripten to version 3.1.42
+  {pr}`3665`, {pr}`3659`, {pr}`3822`, {pr}`3889`, {pr}`3890`, {pr}`3888`, {pr}`4055`
 
 - {{ Update }} The docker image now has node v20 instead of node v14.
   {pr}`3819`
@@ -33,9 +47,6 @@ myst:
 - {{ Enhancement }} The promise methods `then`, `catch` and `finally_` are now
   present also on `Task`s as well as `Future`s.
   {pr}`3748`
-
-- {{ Enhancement }} Added `headers` property to `pyodide.http.FetchResponse`.
-  {pr}`2078`
 
 - {{ Enhancement }} Added methods to a `PyProxy` of a `list` to make these work
   as drop-in replacements for JavaScript Arrays.
@@ -56,9 +67,13 @@ myst:
   `pyodide-lock.json`
   {pr}`3824`
 
-- {{ Breaking }} Changed the FetchResponse body getter methods to no longer
-  throw an OSError exception for 400 and above response status codes
-  {pr}`3986`
+- {{ Enhancement }} Added `headers` property to `pyodide.http.FetchResponse`.
+  {pr}`2078`
+
+- {{ Breaking }} Changed the `FetchResponse` body getter methods to no longer
+  throw an `OSError` exception for 400 and above response status codes. Added
+  `FetchResponse.raise_for_status` to raise an `OSError` for error status codes.
+  {pr}`3986` {pr}`4053`
 
 ### Packages
 
@@ -73,6 +88,7 @@ myst:
 - Upgraded scikit-image to 0.21 {pr}`3874`
 - Upgraded scikit-learn to 1.3.0 {pr}`3976`
 - Upgraded pyodide-http to 0.2.1
+- Upgraded typing-extensions to 4.7.1 {pr}`4026`
 
 ### CLI
 

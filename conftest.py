@@ -36,6 +36,7 @@ pytest_pyodide.runner.INITIALIZE_SCRIPT = """
     pyodide.runPython("");
     pyodide.pyimport("pyodide.ffi.wrappers").destroy();
     pyodide.pyimport("pyodide.http").destroy();
+    pyodide.pyimport("pyodide_js._api")
 """
 
 
@@ -142,6 +143,7 @@ def pytest_collection_modifyitems(config, items):
     skipped_docstrings = [
         "_pyodide._base.CodeRunner",
         "pyodide.http.open_url",
+        "pyodide.http.pyfetch",
     ]
 
     for item in items:

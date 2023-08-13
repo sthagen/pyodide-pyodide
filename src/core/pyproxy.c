@@ -62,10 +62,10 @@ EM_JS(PyObject*, pyproxy_AsPyObject, (JsRef x), {
   return Module.PyProxy_getPtr(val);
 });
 
-EM_JS(void, destroy_proxies, (JsRef proxies_id, char* msg_ptr), {
+EM_JS(void, destroy_proxies, (JsRef proxies_id, Js_Identifier* msg_ptr), {
   let msg = undefined;
   if (msg_ptr) {
-    msg = UTF8ToString(msg_ptr);
+    msg = Hiwire.get_value(_JsString_FromId(msg_ptr));
   }
   let proxies = Hiwire.get_value(proxies_id);
   for (let px of proxies) {
@@ -73,15 +73,27 @@ EM_JS(void, destroy_proxies, (JsRef proxies_id, char* msg_ptr), {
   }
 });
 
-EM_JS(void, destroy_proxy, (JsRef proxy_id, char* msg_ptr), {
-  let px = Module.hiwire.get_value(proxy_id);
-  if (px.$$props.roundtrip) {
+EM_JS(void, gc_register_proxies, (JsRef proxies_id), {
+  let proxies = Hiwire.get_value(proxies_id);
+  for (let px of proxies) {
+    Module.gc_register_proxy(Module.PyProxy_getAttrs(px).shared);
+  }
+});
+
+EM_JS(void, destroy_proxy, (JsRef proxy_id, Js_Identifier* msg_ptr), {
+  const px = Module.hiwire.get_value(proxy_id);
+  const { shared, props } = Module.PyProxy_getAttrsQuiet(px);
+  if (!shared.ptr) {
+    // already destroyed
+    return;
+  }
+  if (props.roundtrip) {
     // Don't destroy roundtrip proxies!
     return;
   }
   let msg = undefined;
   if (msg_ptr) {
-    msg = UTF8ToString(msg_ptr);
+    msg = Hiwire.get_value(_JsString_FromId(msg_ptr));
   }
   Module.pyproxy_destroy(px, msg, false);
 });
@@ -310,7 +322,7 @@ EM_JS(JsRef, proxy_cache_get, (JsRef proxyCacheId, PyObject* descr), {
     return undefined;
   }
   // Okay found a proxy. Is it alive?
-  if (Hiwire.get_value(proxyId).$$.ptr) {
+  if (pyproxyIsAlive(Hiwire.get_value(proxyId))) {
     return proxyId;
   } else {
     // It's dead, tidy up
@@ -1244,14 +1256,19 @@ success:
   return 0;
 }
 
+// clang-format off
 EM_JS_REF(JsRef,
-          pyproxy_new_ex,
-          (PyObject * ptrobj, bool capture_this, bool roundtrip),
-          {
-            return Hiwire.new_value(Module.pyproxy_new(ptrobj, {
-              props : { captureThis : !!capture_this, roundtrip : !!roundtrip }
-            }));
-          });
+pyproxy_new_ex,
+(PyObject * ptrobj, bool capture_this, bool roundtrip, bool gcRegister),
+{
+  return Hiwire.new_value(
+    Module.pyproxy_new(ptrobj, {
+      props: { captureThis: !!capture_this, roundtrip: !!roundtrip },
+      gcRegister,
+    })
+  );
+});
+// clang-format on
 
 EM_JS_REF(JsRef, pyproxy_new, (PyObject * ptrobj), {
   return Hiwire.new_value(Module.pyproxy_new(ptrobj));
@@ -1405,7 +1422,7 @@ create_proxy(PyObject* self,
     return NULL;
   }
 
-  JsRef ref = pyproxy_new_ex(obj, capture_this, roundtrip);
+  JsRef ref = pyproxy_new_ex(obj, capture_this, roundtrip, true);
   PyObject* result = JsProxy_create(ref);
   hiwire_decref(ref);
   return result;

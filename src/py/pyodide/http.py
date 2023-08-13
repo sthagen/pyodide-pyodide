@@ -141,6 +141,22 @@ class FetchResponse:
         if self.js_response.bodyUsed:
             raise OSError("Response body is already used")
 
+    def raise_for_status(self) -> None:
+        """Raise an :py:exc:`OSError` if the status of the response is an error (4xx or 5xx)"""
+        http_error_msg = ""
+        if 400 <= self.status < 500:
+            http_error_msg = (
+                f"{self.status} Client Error: {self.status_text} for url: {self.url}"
+            )
+
+        if 500 <= self.status < 600:
+            http_error_msg = (
+                f"{self.status} Server Error: {self.status_text} for url: {self.url}"
+            )
+
+        if http_error_msg:
+            raise OSError(http_error_msg)
+
     def clone(self) -> "FetchResponse":
         """Return an identical copy of the :py:class:`FetchResponse`.
 
@@ -258,6 +274,19 @@ async def pyfetch(url: str, **kwargs: Any) -> FetchResponse:
     \*\*kwargs :
         keyword arguments are passed along as `optional parameters to the fetch API
         <https://developer.mozilla.org/en-US/docs/Web/API/fetch#options>`_.
+
+    Examples
+    --------
+    >>> from pyodide.http import pyfetch
+    >>> res = await pyfetch("https://cdn.jsdelivr.net/pyodide/v0.23.4/full/repodata.json")
+    >>> res.ok
+    True
+    >>> res.status
+    200
+    >>> data = await res.json()
+    >>> data
+    {'info': {'arch': 'wasm32', 'platform': 'emscripten_3_1_32',
+    'version': '0.23.4', 'python': '3.11.2'}, ... # long output truncated
     """
     try:
         return FetchResponse(
