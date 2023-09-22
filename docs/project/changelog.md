@@ -16,6 +16,9 @@ myst:
 
 ## Unreleased
 
+- {{ Fix }} Fixed an Emscripten bug that broke some matplotlib functionality.
+  {pr}`4163`
+
 - {{ Fix }} Fixed `LONG_BIT definition appears wrong for platform` error happened in out-of-tree build.
   {pr}`4136`
 
@@ -28,6 +31,7 @@ myst:
 ### Packages
 
 - Upgraded scipy to 1.11.2 {pr}`4156`
+- Upgraded sourmash to 4.8.4 {pr}`4154`
 
 - Upgraded scikit-learn to 1.3.1 {pr}`4161`
 
