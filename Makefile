@@ -84,6 +84,8 @@ dist/libpyodide.a: \
 	src/core/jsproxy.o \
 	src/core/pyproxy.o \
 	src/core/python2js_buffer.o \
+	src/core/jslib.o \
+	src/core/jslib_asm.o \
 	src/core/python2js.o \
 	src/core/pyodide_pre.o \
 	src/core/pyversion.o
@@ -138,10 +140,8 @@ dist/package.json : src/js/package.json
 npm-link: dist/package.json
 	cd src/test-js && npm ci && npm link ../../dist
 
-dist/pyodide.d.ts dist/pyodide/ffi.d.ts: src/js/*.ts src/js/generated/pyproxy.ts
-	rm -f node_modules
+dist/pyodide.d.ts dist/pyodide/ffi.d.ts: src/js/*.ts src/js/generated/pyproxy.ts node_modules/.installed
 	npx dts-bundle-generator src/js/{pyodide,ffi}.ts --export-referenced-types false --project src/js/tsconfig.json
-	ln -sfn src/js/node_modules/ node_modules
 	mv src/js/{pyodide,ffi}.d.ts dist
 	python3 tools/fixup-type-definitions.py dist/pyodide.d.ts
 	python3 tools/fixup-type-definitions.py dist/ffi.d.ts
@@ -237,6 +237,10 @@ clean-python: clean
 clean-all: clean
 	make -C emsdk clean
 	make -C cpython clean-all
+
+src/core/jslib_asm.o: src/core/jslib_asm.s
+	$(CC) -o $@ -c $< $(MAIN_MODULE_CFLAGS)
+
 
 %.o: %.c $(CPYTHONLIB) $(wildcard src/core/*.h src/core/*.js)
 	$(CC) -o $@ -c $< $(MAIN_MODULE_CFLAGS) -Isrc/core/
