@@ -29,12 +29,16 @@ myst:
   functions.
   {pr}`4392`
 
+- {{ Breaking }} Pyodide will not fallback to `node-fetch` anymore when `fetch`
+  is not available in the Node.js < 18 environment.
+  {pr}`4417`
+
 - {{ Enhancement }} Updated `pyimport` to support `pyimport("module.attribute")`.
   {pr}`4395`
 
 ### Packages
 
-- New Packages: `cysignals`, `ppl`, `pplpy` {pr}`4407`
+- New Packages: `cysignals`, `ppl`, `pplpy` {pr}`4407`, `flint`, `python-flint` {pr}`4410`
 
 - Upgraded scikit-learn to 1.4.0 {pr}`4409`
 
