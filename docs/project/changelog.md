@@ -54,9 +54,6 @@ myst:
 - {{ Enhancement }} Fixed a memory leak when iterating over a PyProxy.
   {pr}`4546`
 
-- {{ Enhancement }} `asyncio.sleep(0)` now runs the next task a lot faster.
-  {pr}`4568`
-
 - {{ Fix }} `pyodide.mountNativeFS` will no longer silently overwrite an
   existing nonempty directory. Also it throws much clearer error messages when
   it fails.
@@ -71,7 +68,7 @@ myst:
 - New Packages: `cysignals`, `ppl`, `pplpy` {pr}`4407`, `flint`, `python-flint` {pr}`4410`,
   `memory_allocator` {pr}`4393`, `primesieve`, `primecount`, `primecountpy` {pr}`4477`,
   `pyxirr` {pr}`4513`, `ipython`, `asttokens`, `executing`, `prompt_toolkit`,
-  `pure_eval`, `stack_data`, `traitlets`, `wcwidth` {pr}`4452`
+  `pure_eval`, `stack_data`, `traitlets`, `wcwidth` {pr}`4452`, `altair` {pr}`4580`
 
 - Upgraded `scikit-learn` to 1.4.1.post1 {pr}`4409` and {pr}`4534`
 
