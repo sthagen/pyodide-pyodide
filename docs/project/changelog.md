@@ -50,12 +50,19 @@ myst:
   in `CodeRunner` and `Console`.
   {pr}`4897`
 
+- {{ Enhancement }} Unvendored stdlibs are now packaged in a wheel format
+  {pr}`4902`
+
 - {{ Fix }} Fixed a bug that caused `Console`'s `formatted_traceback` being truncated
   unexpectedly when `filename` is specified.
   {pr}`4905`
 
 - {{ Fix }} Locked `PyodideConsole.runcode` to block `loadPackagesFromImports`.
   {pr}`4905`
+
+- {{ Enhancement }} Added `checkAPIVersion` option to `loadPyodide` to allow
+  bootstrapping pyodide with a different version.
+  {pr}`4907`
 
 - {{ Enhancement }} Added `can_run_sync` to test whether or not `run_sync`
   should work.
