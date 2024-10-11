@@ -58,10 +58,18 @@ myst:
   JSON (Arrays and Objects). to Python JSON (lists and dicts).
   {pr}`4666`
 
+- {{ Enhancement }} `pyodide.loadPackage` will now install data files inside the wheel.
+  {pr}`5034`
+
 - {{ Enhancement }} `find_imports("import pkg.module.submodule")` will now
   return `["pkg", "pkg.module", "pkg.module.submodule"]`. This improves support
   for namespace packages.
   {pr}`5039`
+
+- {{ Enhancement }} Enabled `pyodide.FS.trackingDelegate` which can be used to track
+  file system operations. See
+  [Emscripten docs](https://emscripten.org/docs/api_reference/Filesystem-API.html#FS.trackingDelegate[callback%20name])
+  for more information.
 
 - {{ Fix }} It now works to convert a 0d Python buffer to JavaScript.
   {pr}`5092`
@@ -87,6 +95,7 @@ myst:
 - Upgraded `boost-histogram` to 1.5.0 {pr}`5074`
 - Upgraded `duckdb` to 1.1.0 {pr}`5078`
 - Upgraded `sympy` to 1.13.3 {pr}`5098`
+- Upgraded `tree-sitter` to 0.23.1 {pr}`5110`
 - Added `casadi` 3.6.6 {pr}`4936`, {pr}`5057`
 - Added `pyarrow` 17.0.0 {pr}`4950`
 - Added `rasterio` 1.13.10, `affine` 2.4.0 {pr}`4983`
