@@ -66,6 +66,12 @@ myst:
   for more information.
   {pr}`5100`
 
+- {{ Enhancement }} When using the Pyodide console, the standard streams inherit
+  `TextIOBase` and behave more like normal IO streams. In particular, they have
+  methods like `writelines()` and `readlines()`. They still don't have file
+  descriptors though.
+  {pr}`5056`
+
 - {{ Breaking }} The WASM backend is now the default backend for `matplotlib-pyodide` and
   the HTML5 backend has been disabled, temporarily redirecting to it. Power users
   might see minor incompatibilities and subtle differences. Please see
@@ -145,6 +151,7 @@ myst:
 - Added `tiktoken` v0.8.0 in {pr}`5147`
 - Added `casadi` 3.6.7 {pr}`4936`, {pr}`5057`, {pr}`4925`
 - Added `pyarrow` 18.1.0 {pr}`4950`, {pr}`5266`
+- Added `polars` 1.18.0 {pr}`5282`
 - Added `rasterio` 1.4.2, `affine` 2.4.0 {pr}`4983`, {pr}`4925`
 - Added `iminuit` 2.30.1 {pr}`4767`, {pr}`5072`, {pr}`4925`
 - Added `rateslib` 1.6.0 {pr}`5146`, {pr}`5235`
@@ -157,6 +164,7 @@ myst:
 - Added `libzfp` and `zfpy` 1.0.1 {pr}`5172`
 - Added `vega-datasets` 0.9.0 {pr}`5183`
 - Added `clingo` 5.7.1 {pr}`5184`
+- Added `argon2-cffi` `argon2-cffi-bindings` 23.1.0 {pr}`5281`
 - Upgraded `tree-sitter` to 0.23.2 {pr}`5185`
 - Upgraded `tree-sitter-go` to 0.23.3 {pr}`5185`
 - Upgraded `tree-sitter-java` to 0.23.4 {pr}`5185`
