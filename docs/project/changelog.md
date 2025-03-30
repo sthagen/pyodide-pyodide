@@ -16,8 +16,9 @@ myst:
 
 ## Unreleased
 
-- ABI break: Upgraded Emscripten to 3.1.63 {pr}`5343` {pr}`5350` {pr}`5357`
-  {pr}`5334` {pr}`5363`
+- ABI break: Upgraded Emscripten to 4.0.2 {pr}`5343` {pr}`5350` {pr}`5357`
+  {pr}`5334` {pr}`5363` {pr}`5360` {pr}`5379` {pr}`5382`  {pr}`5333` {pr}`5391`
+  {pr}`5397` {pr}`5337` {pr}`5399` {pr}`5401` {pr}`5403` {pr}`5332`
 - ABI break: Switched to using WebAssembly exception handling for C++ errors,
   Rust panics, and setjmp/longjmp. Projects and build system helpers that have
   previously set the `-fexceptions` compilation flag **must** switch to using
@@ -28,6 +29,10 @@ myst:
 - {{ Enhancement }} Upgrade to Python 3.13.1. {pr}`5498`
 - {{ Enhancement }} Added `fsInit` argument to `loadPyodide()` to schedule a
   hook to run to setup the file system. {pr}`5539`
+
+- {{ Fix }} It's now possible to call JavaScript callables that do not inherit
+  from `Function` from the JS FFI.
+  {pr}`5555`
 
 ### `python` CLI entrypoint
 
