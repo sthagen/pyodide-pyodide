@@ -29,12 +29,21 @@ myst:
   {pr}`5320`
 - {{ Enhancement }} Upgraded to Python 3.13.1. {pr}`5498`
 
+- {{ Enhancement }} `time.sleep()` will now stack switch if possible. This
+  allows other events on the event loop to be processed during the
+  sleep.
+  {pr}`5686`
+
 - {{ Fix }} Importing matplotlib should now be significantly faster. {pr}`5569`
 
 - {{ Breaking }} When `lockfileURL` is given to `loadPyodide`, the
   base URL for the packages is now calculated from the lockfile URL, not from
   the `indexURL`.
   {pr}`5652`
+
+- {{ Enhancement }} Property access on a `PyProxy` of a dictionary will now fall
+  back to `__getitem__()` if there is no attribute of the given name.
+  {pr}`5674`
 
 ### `python` CLI entrypoint
 
