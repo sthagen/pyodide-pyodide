@@ -1,7 +1,7 @@
 export {};
 import type { PyProxy, PyAwaitable } from "generated/pyproxy";
 import { type PyodideAPI } from "./api";
-import { type ConfigType } from "./pyodide";
+import { type PyodideConfigWithDefaults } from "./pyodide";
 import { type InFuncType } from "./streams";
 import { type RuntimeEnv } from "./environments";
 import { SnapshotConfig } from "./snapshot";
@@ -304,6 +304,7 @@ export interface PyodideModule extends PythonModule {
   API: API;
   _compat_to_string_repr: number;
   _compat_null_to_none: number;
+  _compat_dict_to_literalmap: number;
   js2python_convert: (
     obj: any,
     options: {
@@ -453,7 +454,7 @@ export interface API {
   debug_ffi: boolean;
   maybe_fatal_error: (e: any) => void;
   public_api: PyodideAPI;
-  config: ConfigType;
+  config: PyodideConfigWithDefaults;
   packageIndexReady: Promise<void>;
   bootstrapFinalizedPromise: Promise<void>;
   typedArrayAsUint8Array: (buffer: TypedArray | ArrayBuffer) => Uint8Array;
@@ -476,6 +477,7 @@ export interface API {
   deserializeError: (name: string, message: string, stack: string) => Error;
   setPyProxyToStringMethod: (useRepr: boolean) => void;
   setCompatNullToNone: (compat: boolean) => void;
+  setCompatToJsLiteralMap: (compat: boolean) => void;
 
   _pyodide: any;
   pyodide_py: any;
@@ -557,7 +559,10 @@ export type PackageManagerAPI = Pick<
   | "defaultLdLibraryPath"
   | "version"
 > & {
-  config: Pick<ConfigType, "packageCacheDir" | "packageBaseUrl" | "cdnUrl">;
+  config: Pick<
+    PyodideConfigWithDefaults,
+    "packageCacheDir" | "packageBaseUrl" | "cdnUrl"
+  >;
 };
 /**
  * @hidden
