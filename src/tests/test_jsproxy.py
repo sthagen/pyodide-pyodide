@@ -1611,7 +1611,7 @@ def test_array_like_sequence_iteration_fail(selenium):
     from pyodide.ffi import JsException
 
     l = run_js("({[Symbol.iterator](){}, length: 5})")
-    match = "TypeError.*Symbol.iterator"
+    match = r"TypeError.*[Ii]terator"
     with pytest.raises(JsException, match=match):
         l + [1, 2, 3]
 
@@ -2995,6 +2995,74 @@ def test_jsproxy_context_manager(selenium):
 
     try:
         with f() as o:
+            assert o.x == 9
+            assert not o.closed
+            raise Exception("oops")
+    except Exception:
+        pass
+    assert o.closed
+
+
+@pytest.mark.xfail_browsers(safari="Symbol.asyncDispose not supported in Safari")
+@run_in_pyodide
+async def test_jsproxy_async_context_manager(selenium):
+    from pyodide.code import run_js
+
+    f = run_js(
+        """
+        (function f() {
+            return {
+                x: 9,
+                closed: false,
+                async [Symbol.asyncDispose] () {
+                    await sleep(100);
+                    this.closed = true;
+                }
+            };
+        })
+        """
+    )
+    async with f() as o:
+        assert o.x == 9
+        assert not o.closed
+    assert o.closed
+
+    try:
+        async with f() as o:
+            assert o.x == 9
+            assert not o.closed
+            raise Exception("oops")
+    except Exception:
+        pass
+    assert o.closed
+
+
+@pytest.mark.xfail_browsers(safari="Symbol.asyncDispose not supported in Safari")
+@run_in_pyodide
+async def test_jsproxy_async_dispose_returns_synchronously(selenium):
+    from pyodide.code import run_js
+
+    # Make sure it works even when asyncDispose returns synchronously.
+    f = run_js(
+        """
+        (function f() {
+            return {
+                x: 9,
+                closed: false,
+                [Symbol.asyncDispose] () {
+                    this.closed = true;
+                }
+            };
+        })
+        """
+    )
+    async with f() as o:
+        assert o.x == 9
+        assert not o.closed
+    assert o.closed
+
+    try:
+        async with f() as o:
             assert o.x == 9
             assert not o.closed
             raise Exception("oops")
