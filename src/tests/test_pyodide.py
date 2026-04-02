@@ -354,8 +354,8 @@ def test_relaxed_wrap():
     assert f5(1, 2, 3, 4, b=7, c=9) == [1, (2, 3, 4), 7, {"c": 9}]
 
 
-def test_unpack_archive(selenium_standalone):
-    selenium = selenium_standalone
+def test_unpack_archive(selenium_standalone_refresh):
+    selenium = selenium_standalone_refresh
     js_error = selenium.run_js(
         """
         var error = "";
@@ -1009,8 +1009,8 @@ def test_restore_state(selenium):
 
 @pytest.mark.xfail_browsers(safari="TODO: traceback is not the same on Safari")
 @pytest.mark.skip_refcount_check
-def test_fatal_error(selenium_standalone):
-    assert selenium_standalone.run_js(
+def test_fatal_error(selenium_standalone_refresh):
+    assert selenium_standalone_refresh.run_js(
         """
         try {
             pyodide.runPython(`
@@ -1046,7 +1046,7 @@ def test_fatal_error(selenium_standalone):
         x = x.replace("\n\n", "\n")
         return x
 
-    err_msg = strip_stack_trace(selenium_standalone.logs)
+    err_msg = strip_stack_trace(selenium_standalone_refresh.logs)
     err_msg = "".join(strip_assertions_stderr(err_msg.splitlines(keepends=True)))
     assert (
         err_msg
@@ -1066,7 +1066,7 @@ def test_fatal_error(selenium_standalone):
             )
         ).strip()
     )
-    selenium_standalone.run_js(
+    selenium_standalone_refresh.run_js(
         """
         assertThrows(() => pyodide.runPython, "Error", "Pyodide already fatally failed and can no longer be used.")
         assertThrows(() => pyodide.globals, "Error", "Pyodide already fatally failed and can no longer be used.")
@@ -1075,8 +1075,8 @@ def test_fatal_error(selenium_standalone):
 
 
 @pytest.mark.skip_refcount_check
-def test_exit_error(selenium_standalone):
-    x = selenium_standalone.run_js(
+def test_exit_error(selenium_standalone_refresh):
+    x = selenium_standalone_refresh.run_js(
         """
         try {
             pyodide.runPython(`
@@ -1198,8 +1198,8 @@ def test_js_stackframes(selenium):
     assert normalize_tb(res[: len(frames)]) == frames
 
 
-def test_reentrant_fatal(selenium_standalone):
-    selenium = selenium_standalone
+def test_reentrant_fatal(selenium_standalone_refresh):
+    selenium = selenium_standalone_refresh
     assert selenium.run_js(
         """
         function f(){
@@ -1263,13 +1263,13 @@ def test_weird_throws(selenium):
 
 @pytest.mark.skip_refcount_check
 @pytest.mark.parametrize("to_throw", ["Object.create(null);", "'Some message'", "null"])
-def test_weird_fatals(selenium_standalone, to_throw):
+def test_weird_fatals(selenium_standalone_refresh, to_throw):
     expected_message = {
         "Object.create(null);": "Error: A value of type object with tag [object Object] was thrown as an error!",
         "'Some message'": "Error: Some message",
         "null": "Error: A value of type object with tag [object Null] was thrown as an error!",
     }[to_throw]
-    msg = selenium_standalone.run_js(
+    msg = selenium_standalone_refresh.run_js(
         f"""
         self.f = function(){{ throw {to_throw} }};
         """
@@ -1402,27 +1402,6 @@ def test_sys_path0(selenium):
     assert sys.path[0] == ""
 
 
-@pytest.mark.requires_dynamic_linking
-def test_fullstdlib(selenium_standalone_noload):
-    selenium = selenium_standalone_noload
-    selenium.run_js(
-        """
-        let pyodide = await loadPyodide({
-            fullStdLib: true,
-        });
-
-        await pyodide.loadPackage("micropip");
-
-        pyodide.runPython(`
-            import pyodide_js
-            import micropip
-            loaded_packages = micropip.list()
-            assert all((lib in micropip.list()) for lib in pyodide_js._api.lockfile_unvendored_stdlibs)
-        `);
-        """
-    )
-
-
 def test_loadPyodide_relative_index_url(selenium_standalone_noload):
     """Check that loading Pyodide with a relative URL works"""
     selenium_standalone_noload.run_js(
@@ -1480,27 +1459,11 @@ def test_module_not_found_note(selenium_standalone):
     import pytest
 
     from _pyodide._importhook import add_note_to_module_not_found_error
-    from pyodide.code import run_js
 
-    unvendored_stdlibs = ["test"]
     removed_stdlibs = ["pwd", "turtle", "tkinter"]
     lockfile_packages = [
         "micropip",
     ]
-
-    # When error is wrapped, add_note_to_module_not_found_error is called
-    with pytest.raises(ModuleNotFoundError) as e:
-        run_js("(f) => f()")(lambda: importlib.import_module("test"))
-    assert "unvendored from the Python standard library" in e.value.__notes__[0]
-    assert len(e.value.__notes__) == 1
-
-    for lib in unvendored_stdlibs:
-        with pytest.raises(ModuleNotFoundError) as e:
-            importlib.import_module(lib)
-        add_note_to_module_not_found_error(e.value)
-        add_note_to_module_not_found_error(e.value)
-        assert "unvendored from the Python standard library" in e.value.__notes__[0]
-        assert len(e.value.__notes__) == 1
 
     for lib in removed_stdlibs:
         with pytest.raises(ModuleNotFoundError) as e:
@@ -1671,7 +1634,6 @@ def test_args(selenium_standalone_noload):
             stderrStrings.push(s);
         }
         let pyodide = await loadPyodide({
-            fullStdLib: false,
             jsglobals : self,
             stdout,
             stderr,
@@ -1960,7 +1922,6 @@ def test_custom_python_stdlib_URL(selenium_standalone_noload, runtime):
         selenium.run_js(
             """
             let pyodide = await loadPyodide({
-                fullStdLib: false,
                 stdLibURL: "./python_stdlib2.zip",
             });
             // Check that we can import stdlib library modules
@@ -2074,17 +2035,20 @@ def test_hiwire_invalid_ref(selenium):
             }
             """
         )
-    msg = "hiwire_{} on invalid reference 12345. This is most likely due to use after free. It may also be due to memory corruption."
+    # Index 0 is never allocated in libhiwire. Thus, ref=1 is guaranteed
+    # to be an invalid reference, preventing test flakiness.
+    ref = 1
+    msg = f"hiwire_{{}} on invalid reference {ref}. This is most likely due to use after free. It may also be due to memory corruption."
     with pytest.raises(JsException, match=msg.format("get")):
-        _hiwire_get(12345)
+        _hiwire_get(ref)
     assert _api.fail_test
     _api.fail_test = False
     with pytest.raises(JsException, match=msg.format("incref")):
-        _hiwire_incref(12345)
+        _hiwire_incref(ref)
     assert _api.fail_test
     _api.fail_test = False
     with pytest.raises(JsException, match=msg.format("decref")):
-        _hiwire_decref(12345)
+        _hiwire_decref(ref)
     assert _api.fail_test
     _api.fail_test = False
 
