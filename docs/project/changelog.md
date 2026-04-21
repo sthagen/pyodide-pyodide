@@ -82,6 +82,9 @@ myst:
   reported by `os.get_terminal_size()` and `shutil.get_terminal_size()`.
   {pr}`6157`
 
+- {{ Enhancement }} Made Pyodide compatible with wheels tagged `pyemscripten`.
+  {pr}`6180`, {pr}`6203`
+
 ## Version 0.29.3
 
 _January 28, 2026_
