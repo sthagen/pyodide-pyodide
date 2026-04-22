@@ -415,7 +415,7 @@ class Changelog:
         from the unreleased section, just duplicate it.
         """
         self.patch_release = ChangelogVersion()
-        self.patch_release.append_lines([f"## Version {version}", "", f"_{date}_"])
+        self.patch_release.append_lines([f"## Version {version}", "", f"_{date}_", ""])
         backport_subsections = {}
         backport_subsubsections = {}
 
