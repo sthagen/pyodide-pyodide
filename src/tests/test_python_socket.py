@@ -562,6 +562,43 @@ def test_socket_shutdown(selenium_nodesock):
         run(selenium_nodesock, host, port)
 
 
+def test_socket_shutdown_pairs(selenium_nodesock):
+    """All 9 combinations of two consecutive shutdown() calls should succeed (Linux behavior)."""
+
+    server_conns = []
+
+    def handler(conn, _addr):
+        server_conns.append(conn)
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
+                conn.sendall(data)
+        except OSError:
+            pass
+
+    @run_in_pyodide
+    def run(selenium, host, port, first, second):
+        import socket
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+        s.sendall(b"ping")
+        s.recv(1024)
+
+        s.shutdown(first)
+        s.shutdown(second)
+        s.close()
+
+    shut_values = [0, 1, 2]
+    for first in shut_values:
+        for second in shut_values:
+            with tcp_server(handler) as (host, port):
+                run(selenium_nodesock, host, port, first, second)
+            server_conns.clear()
+
+
 def test_socket_shutdown_non_nodesock(selenium_standalone):
     """
     Calling shutdown on a non-node socket will raise "Function not implemented"
@@ -585,6 +622,60 @@ def test_socket_shutdown_non_nodesock(selenium_standalone):
         s.close()
 
     run(selenium_standalone)
+
+
+def test_socket_settimeout_nonblocking(selenium_nodesock):
+    """settimeout(0) makes recv raise socket.timeout when no data is available."""
+
+    def handler(conn, _addr):
+        import time
+
+        time.sleep(2)
+        conn.sendall(b"delayed")
+        conn.close()
+
+    @run_in_pyodide(packages=["pytest"])
+    def run(selenium, host, port):
+        import socket
+
+        import pytest
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+
+        s.settimeout(0)
+
+        with pytest.raises(OSError):
+            s.recv(1024)
+
+    with tcp_server(handler) as (host, port):
+        run(selenium_nodesock, host, port)
+
+
+def test_socket_settimeout_restore_blocking(selenium_nodesock):
+    """settimeout(0) then settimeout(None) restores blocking mode."""
+
+    def handler(conn, _addr):
+        conn.sendall(b"hello")
+        conn.close()
+
+    @run_in_pyodide
+    def run(selenium, host, port):
+        import socket
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+
+        s.settimeout(0)
+        s.settimeout(None)
+
+        data = s.recv(1024)
+        s.close()
+        return data.decode()
+
+    with tcp_server(handler) as (host, port):
+        result = run(selenium_nodesock, host, port)
+        assert result == "hello"
 
 
 # ---------------------------------------------------------------------------
