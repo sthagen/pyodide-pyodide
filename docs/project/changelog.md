@@ -15,6 +15,14 @@ myst:
 
 # Change Log
 
+## Unreleased
+
+
+- {{ Performance }} Sped up conversion of small integers from Python to JavaScript. {pr}`6279`
+
+- {{ Performance }} Sped up conversion of strings from JavaScript to Python. {pr}`6281`
+
+
 ## Version 314.0.0
 
 _June 09, 2026_
