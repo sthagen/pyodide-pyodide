@@ -116,8 +116,8 @@ static PyTypeObject Py2JsConverterType = {
 JsVal
 Py2JsConverter_convert(PyObject* converter, PyObject* pyval, JsVal proxies)
 {
+  FAIL_RETURN_VALUE(JS_ERROR);
   DECLARE_PY_OBJECT(pre_converted);
-  JsVal result = JS_ERROR;
 
   int status = PyObject_IsInstance(converter, (PyObject*)&Py2JsConverterType);
   if (status == 0) {
@@ -134,10 +134,7 @@ Py2JsConverter_convert(PyObject* converter, PyObject* pyval, JsVal proxies)
     pre_converted = Py_NewRef(pyval);
   }
 
-  result =
-    Py2JsConverter_converter(converter)(converter, pre_converted, proxies);
-finally:
-  return result;
+  return Py2JsConverter_converter(converter)(converter, pre_converted, proxies);
 }
 
 // Js2PyConverter
@@ -248,6 +245,7 @@ static PyTypeObject Js2PyConverterType = {
 PyObject*
 Js2PyConverter_convert(PyObject* converter, JsVal jsval, JsVal proxies)
 {
+  FAIL_RETURN_VALUE(NULL);
   int status = PyObject_IsInstance(converter, (PyObject*)&Js2PyConverterType);
   if (status == 0) {
     PyErr_Format(
@@ -268,8 +266,6 @@ Js2PyConverter_convert(PyObject* converter, JsVal jsval, JsVal proxies)
   PyObject* post_converted = PyObject_CallOneArg(post_convert, result);
   Py_CLEAR(result);
   return post_converted;
-finally:
-  return NULL;
 }
 
 // Py2Js conversion functions get as arguments:
@@ -525,6 +521,7 @@ EM_JS_VAL(JsVal, wrap_async_generator, (JsVal gen, JsVal proxies), {
 static PyObject*
 Js2Py_func_default_call_result(PyObject* self, JsVal jsresult, JsVal proxies)
 {
+  FAIL_RETURN_VALUE(NULL);
   PyObject* pyresult = NULL;
   // various cases where we want to extend the lifetime of the arguments:
   // 1. if the return value is a promise we extend arguments lifetime until the
@@ -568,7 +565,6 @@ Js2Py_func_default_call_result(PyObject* self, JsVal jsresult, JsVal proxies)
   } else {
     gc_register_proxies(proxies);
   }
-finally:
   return pyresult;
 }
 
@@ -577,16 +573,14 @@ add_py2js_converter(PyObject* core_mod,
                     const char* name,
                     Py2JsConvertFunc* func)
 {
-  bool success = false;
+  FAIL_RETURN_VALUE(-1);
 
   DECLARE_PY_OBJECT(converter);
   converter = Py2JsConverter_cnew(func);
   FAIL_IF_NULL(converter);
   FAIL_IF_MINUS_ONE(PyObject_SetAttrString(core_mod, name, converter));
 
-  success = true;
-finally:
-  return success ? 0 : -1;
+  return 0;
 }
 
 static int
@@ -594,16 +588,14 @@ add_js2py_converter(PyObject* core_mod,
                     const char* name,
                     Js2PyConvertFunc* func)
 {
-  bool success = false;
+  FAIL_RETURN_VALUE(-1);
 
   DECLARE_PY_OBJECT(converter);
   converter = Js2PyConverter_cnew(func);
   FAIL_IF_NULL(converter);
   FAIL_IF_MINUS_ONE(PyObject_SetAttrString(core_mod, name, converter));
 
-  success = true;
-finally:
-  return success ? 0 : -1;
+  return 0;
 }
 
 #define ADD_TYPE(type)                                                         \
@@ -635,7 +627,7 @@ static PyMethodDef methods[] = {
 int
 jsbind_init(PyObject* core_mod)
 {
-  bool success = false;
+  FAIL_RETURN_VALUE(-1);
   ADD_TYPE(Py2JsConverter);
   ADD_TYPE(Js2PyConverter);
 
@@ -658,7 +650,5 @@ jsbind_init(PyObject* core_mod)
   default_signature = PyObject_GetAttrString(jsbind, "default_signature");
   FAIL_IF_NULL(default_signature);
 
-  success = true;
-finally:
-  return success ? 0 : -1;
+  return 0;
 }

@@ -19,9 +19,30 @@ myst:
 
 - {{ Performance }} Sped up PyProxy creation. {pr}`6280`
 
+- {{ Fix }} `PyodideFuture.then()` and `finally_()` no longer hang when the
+  source future is cancelled; the cancellation now propagates to the chained
+  future. {pr}`6290`
+
+- {{ Fix }} Deserialized JavaScript errors now keep their original type
+  (`TypeError`, `RangeError`, etc.) instead of always becoming a plain `Error`.
+  {pr}`6291`
+
+- {{ Fix }} `SSLSocket.read()` no longer raises `TypeError` when called with a
+  buffer argument. {pr}`6295`
+
+- {{ Fix }} Fixed memory leaks of internal `JsFuncSignature` and `Buffer`
+  objects, whose deallocators never freed the object itself. {pr}`6293`
+
+- {{ Fix }} `update()` on a JavaScript `Map` proxy now applies keyword
+  arguments instead of silently dropping them. {pr}`6292`
+
 - {{ Performance }} Sped up conversion of small integers from Python to JavaScript. {pr}`6279`
 
 - {{ Performance }} Sped up conversion of strings from JavaScript to Python. {pr}`6281`
+
+- {{ Performance }} Sped up conversion of ASCII strings from Python to JavaScript using TextDecoder. {pr}`6283`
+
+- {{ Performance }} Sped up JsProxy operations by caching type flags. {pr}`6282`
 
 ## Version 314.0.0
 
