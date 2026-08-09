@@ -2,10 +2,19 @@ name: main
 
 on:
   push:
+    branches:
+      # development branch
+      - main
+      # latest release branch
+      - stable
+      # older release branches
+      - "[0-9]+.[0-9]+.X"
+      # slightly longer-lived branches for ABI changes
+      - "abi_*"
   pull_request:
 
 concurrency:
-  group: main-${{ github.head_ref }}
+  group: main-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -23,7 +32,7 @@ jobs:
       PYVERSION: ${{ steps.get_python_version.outputs.PYVERSION }}
       PYVERSION_SETUP_PYTHON: ${{ steps.get_python_version.outputs.PYVERSION_SETUP_PYTHON }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Read the Python version from Makefile.envs
@@ -43,11 +52,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.get_python_version.outputs.PYVERSION }}
       - name: Install Python requirements
@@ -74,11 +83,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.get_python_version.outputs.PYVERSION_SETUP_PYTHON }}
       - name: Install requirements
@@ -112,7 +121,7 @@ jobs:
         include:
           - os: ubuntu-latest
             pyodide_packages: "tag:core,tag:pyodide.test,numpy${{ needs.test-scipy-trigger.outputs.test-scipy == 'true' && ',scipy' || '' }}"
-          - os: macos-14
+          - os: macos-15
             pyodide_packages: "tag:core,tag:pyodide.test,numpy"
     runs-on: ${{ matrix.os }}
     needs: [test-scipy-trigger, get_python_version]
@@ -129,7 +138,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -138,7 +147,11 @@ jobs:
         with:
           path: |
             /tmp/ccache
-          key: ${{ hashFiles('Makefile.envs') }}-${{ runner.os }}-v20211025-
+          # Make the key unique per run because actions/cache does not update
+          # an existing cache on an exact hit for a fully static key
+          key: ccache-${{ hashFiles('Makefile.envs', 'emsdk/patches/*.patch') }}-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ hashFiles('Makefile.envs', 'emsdk/patches/*.patch') }}-${{ runner.os }}-
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -175,7 +188,7 @@ jobs:
           echo "$(brew --prefix)/opt/coreutils/libexec/gnubin" >> "$GITHUB_PATH"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Set up Python ${{ needs.get_python_version.outputs.PYVERSION }}
         env:
@@ -207,6 +220,10 @@ jobs:
           make -C emsdk
           ccache -s
 
+          # Set mtime for EM_CONFIG to avoid ccache cache misses
+          source pyodide_env.sh
+          touch -m -d '1 Jan 2021 12:00' "$EM_CONFIG"
+
       - name: Build Cpython
         run: |
           # This is necessary to use the ccache from emsdk
@@ -225,6 +242,10 @@ jobs:
         run: |
           # This is necessary to use the ccache from emsdk
           source pyodide_env.sh
+
+          # Set mtime for EM_CONFIG to avoid ccache cache misses
+          touch -m -d '1 Jan 2021 12:00' "$EM_CONFIG"
+
           ccache -z
           make -j$PYODIDE_JOBS
           ccache -s
@@ -257,10 +278,13 @@ jobs:
   test-core:
     name: Test core (${{ matrix.browser }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     permissions:
       contents: read
     env:
       DISPLAY: :99
+      SE_SAFARIDRIVER: /usr/bin/safaridriver
+      PYTEST_PYODIDE_SAFARIDRIVER_LOG_DIR: ${{ github.workspace }}/safari-artifacts/safaridriver-logs
 
     needs: [build-core, get_python_version]
     defaults:
@@ -269,12 +293,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14]
+        os: [macos-15]
         runner: [selenium]
         browser: [safari]
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -290,7 +314,7 @@ jobs:
           node-version: "24"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Set up Python ${{ needs.get_python_version.outputs.PYVERSION }}
         env:
@@ -310,32 +334,36 @@ jobs:
           runner: ${{ matrix.runner }}
           browser: ${{ matrix.browser }}
 
-      - name: Safari pre-test cleanup
+      - name: Safari setup and pre-test cleanup
         if: matrix.browser == 'safari'
         run: |
-          # Kill any stale Safari/safaridriver processes
-          pkill -9 Safari 2>/dev/null || true
-          pkill -9 safaridriver 2>/dev/null || true
-          sleep 3
+          mkdir -p test-results safari-artifacts "$PYTEST_PYODIDE_SAFARIDRIVER_LOG_DIR"
+          tools/safari_cleanup.sh
 
-          # Verify safaridriver can start and respond
-          safaridriver --port 14444 &
-          DRIVER_PID=$!
-
-          for i in $(seq 1 20); do
-            if curl -sf http://localhost:14444/status > /dev/null 2>&1; then
-              echo "✓ SafariDriver responding"
-              kill $DRIVER_PID 2>/dev/null || true
-              exit 0
+          ENVIRONMENT_FILE="safari-artifacts/environment.txt"
+          set +e
+          {
+            echo "sw_vers:"
+            sw_vers
+            echo
+            echo "safaridriver_version:"
+            /usr/bin/safaridriver --version
+            echo
+            echo "Safari metadata:"
+            if [[ -f /Applications/Safari.app/Contents/Info.plist ]]; then
+              /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/Safari.app/Contents/Info.plist \
+                | sed 's/^/CFBundleShortVersionString: /'
+              /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /Applications/Safari.app/Contents/Info.plist \
+                | sed 's/^/CFBundleVersion: /'
+            else
+              echo "Safari app metadata unavailable"
             fi
-            sleep 1
-          done
-
-          echo "✗ SafariDriver failed to respond"
-          kill $DRIVER_PID 2>/dev/null || true
-          exit 1
+          } > "$ENVIRONMENT_FILE"
+          true
+          set -e
 
       - name: run core tests
+        timeout-minutes: 90
         env:
           BROWSER: ${{ matrix.browser }}
           RUNNER: ${{ matrix.runner }}
@@ -350,7 +378,13 @@ jobs:
             --durations 50 \
             --junitxml=test-results/core_test.xml
 
+      - name: Safari cleanup between core and package tests
+        if: always() && matrix.browser == 'safari'
+        run: |
+          tools/safari_cleanup.sh || true
+
       - name: run package tests
+        timeout-minutes: 30
         env:
           BROWSER: ${{ matrix.browser }}
           RUNNER: ${{ matrix.runner }}
@@ -365,11 +399,65 @@ jobs:
             --durations 50 \
             --junitxml=test-results/packages_test.xml
 
+      - name: Collect Safari diagnostics
+        if: always() && matrix.browser == 'safari'
+        run: |
+          set +e
+          mkdir -p safari-artifacts safari-artifacts/diagnostic-reports test-results
+
+          DIAGNOSTICS_FILE="safari-artifacts/post-test-state.txt"
+          {
+            echo "timestamp_utc: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo
+            for process_name in Safari safaridriver com.apple.WebKit.WebContent com.apple.WebKit.Networking com.apple.WebKit.GPU; do
+              echo "process_name: ${process_name}"
+              if process_ids=$(pgrep -u "$(id -u)" -x "$process_name"); then
+                echo "$process_ids"
+                ps -p "$(printf '%s\n' "$process_ids" | paste -sd, -)" -o pid,ppid,stat,start,time,comm
+              else
+                echo "not running"
+              fi
+              echo
+            done
+          } > "$DIAGNOSTICS_FILE"
+
+          if [[ -d "$HOME/Library/Logs/com.apple.WebDriver" ]]; then
+            cp -R "$HOME/Library/Logs/com.apple.WebDriver" safari-artifacts/
+          fi
+
+          shopt -s nullglob
+          for report in \
+            "$HOME"/Library/Logs/DiagnosticReports/Safari*.crash \
+            "$HOME"/Library/Logs/DiagnosticReports/Safari*.ips \
+            "$HOME"/Library/Logs/DiagnosticReports/WebKit*.crash \
+            "$HOME"/Library/Logs/DiagnosticReports/WebKit*.ips \
+            "$HOME"/Library/Logs/DiagnosticReports/com.apple.WebKit*.crash \
+            "$HOME"/Library/Logs/DiagnosticReports/com.apple.WebKit*.ips; do
+            cp "$report" safari-artifacts/diagnostic-reports/
+          done
+          true
+
       - name: Test Summary
         uses: test-summary/action@37b508cfee6d4d080eedd00b5bb240a6a784a6a5 # v2.6
         with:
           paths: "test-results/*.xml"
         if: always()
+
+      - name: Upload Safari diagnostics
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: safari-test-diagnostics-${{ matrix.os }}
+          path: |
+            test-results/
+            safari-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+        if: always() && matrix.browser == 'safari'
+
+      - name: Safari final cleanup
+        if: always() && matrix.browser == 'safari'
+        run: |
+          tools/safari_cleanup.sh || true
 
   test-cmdline-runner:
     name: Test command-line runner (${{ matrix.os }})
@@ -382,12 +470,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.get_python_version.outputs.PYVERSION_SETUP_PYTHON }}
 
@@ -457,12 +545,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.get_python_version.outputs.PYVERSION_SETUP_PYTHON }}
 
@@ -515,7 +603,7 @@ jobs:
       test-scipy: ${{ steps.check-build-trigger.outputs.trigger }}
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
@@ -551,7 +639,7 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -589,7 +677,7 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -624,7 +712,7 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
